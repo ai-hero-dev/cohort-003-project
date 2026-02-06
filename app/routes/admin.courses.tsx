@@ -138,6 +138,9 @@ function CourseRow({
     if (statusFetcher.state === "idle" && statusFetcher.data?.success) {
       toast.success("Course status updated.");
     }
+    if (statusFetcher.state === "idle" && statusFetcher.data?.error) {
+      toast.error(statusFetcher.data.error);
+    }
   }, [statusFetcher.state, statusFetcher.data]);
 
   function handleStatusChange(newStatus: string) {

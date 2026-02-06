@@ -312,6 +312,9 @@ function InlineEditableTitle({
     if (fetcher.state === "idle" && fetcher.data?.success) {
       toast.success("Title saved.");
     }
+    if (fetcher.state === "idle" && fetcher.data?.error) {
+      toast.error(fetcher.data.error);
+    }
   }, [fetcher.state, fetcher.data]);
 
   // Update local state when server responds with new data
@@ -396,6 +399,9 @@ function InlineEditableDescription({
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.success) {
       toast.success("Description saved.");
+    }
+    if (fetcher.state === "idle" && fetcher.data?.error) {
+      toast.error(fetcher.data.error);
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -545,6 +551,9 @@ function DeleteModuleButton({ moduleId, moduleTitle }: { moduleId: number; modul
     if (fetcher.state === "idle" && fetcher.data?.success) {
       toast.success("Module deleted.");
     }
+    if (fetcher.state === "idle" && fetcher.data?.error) {
+      toast.error(fetcher.data.error);
+    }
   }, [fetcher.state, fetcher.data]);
 
   if (confirming) {
@@ -607,6 +616,9 @@ function AddModuleForm() {
       setTitle("");
       setIsAdding(false);
       toast.success("Module added.");
+    }
+    if (fetcher.state === "idle" && fetcher.data?.error) {
+      toast.error(fetcher.data.error);
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -753,6 +765,9 @@ function DeleteLessonButton({ lessonId, lessonTitle }: { lessonId: number; lesso
     if (fetcher.state === "idle" && fetcher.data?.success) {
       toast.success("Lesson deleted.");
     }
+    if (fetcher.state === "idle" && fetcher.data?.error) {
+      toast.error(fetcher.data.error);
+    }
   }, [fetcher.state, fetcher.data]);
 
   if (confirming) {
@@ -814,6 +829,9 @@ function AddLessonForm({ moduleId }: { moduleId: number }) {
       setTitle("");
       setIsAdding(false);
       toast.success("Lesson added.");
+    }
+    if (fetcher.state === "idle" && fetcher.data?.error) {
+      toast.error(fetcher.data.error);
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -904,17 +922,26 @@ export default function InstructorCourseEditor({
     if (statusFetcher.state === "idle" && statusFetcher.data?.success) {
       toast.success("Course status updated.");
     }
+    if (statusFetcher.state === "idle" && statusFetcher.data?.error) {
+      toast.error(statusFetcher.data.error);
+    }
   }, [statusFetcher.state, statusFetcher.data]);
 
   useEffect(() => {
     if (reorderFetcher.state === "idle" && reorderFetcher.data?.success) {
       toast.success("Modules reordered.");
     }
+    if (reorderFetcher.state === "idle" && reorderFetcher.data?.error) {
+      toast.error(reorderFetcher.data.error);
+    }
   }, [reorderFetcher.state, reorderFetcher.data]);
 
   useEffect(() => {
     if (lessonReorderFetcher.state === "idle" && lessonReorderFetcher.data?.success) {
       toast.success("Lessons reordered.");
+    }
+    if (lessonReorderFetcher.state === "idle" && lessonReorderFetcher.data?.error) {
+      toast.error(lessonReorderFetcher.data.error);
     }
   }, [lessonReorderFetcher.state, lessonReorderFetcher.data]);
 

@@ -170,6 +170,9 @@ export default function InstructorLessonEditor({
     if (fetcher.state === "idle" && fetcher.data?.success) {
       toast.success("Lesson saved.");
     }
+    if (fetcher.state === "idle" && fetcher.data?.error) {
+      toast.error(fetcher.data.error);
+    }
   }, [fetcher.state, fetcher.data]);
 
   function handleSave() {

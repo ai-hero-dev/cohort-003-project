@@ -159,11 +159,17 @@ function EditableUserRow({
       setIsEditing(false);
       toast.success("User updated successfully.");
     }
+    if (updateFetcher.state === "idle" && updateFetcher.data?.error) {
+      toast.error(updateFetcher.data.error);
+    }
   }, [updateFetcher.state, updateFetcher.data]);
 
   useEffect(() => {
     if (roleFetcher.state === "idle" && roleFetcher.data?.success) {
       toast.success("Role updated successfully.");
+    }
+    if (roleFetcher.state === "idle" && roleFetcher.data?.error) {
+      toast.error(roleFetcher.data.error);
     }
   }, [roleFetcher.state, roleFetcher.data]);
 

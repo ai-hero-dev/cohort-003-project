@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, redirect, useFetcher } from "react-router";
+import { toast } from "sonner";
 import type { Route } from "./+types/instructor.new";
 import { createCourse, generateSlug, getAllCategories, getCourseBySlug } from "~/services/courseService";
 import { getCurrentUserId } from "~/lib/session";
@@ -117,6 +118,15 @@ export default function InstructorNewCourse({
   const fetcher = useFetcher();
   const isSubmitting = fetcher.state !== "idle";
   const [selectedCategory, setSelectedCategory] = useState("");
+
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.errors) {
+      const firstError = Object.values(fetcher.data.errors)[0];
+      if (firstError) {
+        toast.error(firstError as string);
+      }
+    }
+  }, [fetcher.state, fetcher.data]);
 
   return (
     <div className="p-6 lg:p-8">

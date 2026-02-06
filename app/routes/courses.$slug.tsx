@@ -149,6 +149,9 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     if (fetcher.state === "idle" && fetcher.data?.success) {
       toast.success("Successfully enrolled in this course!");
     }
+    if (fetcher.state === "idle" && fetcher.data?.error) {
+      toast.error(fetcher.data.error);
+    }
   }, [fetcher.state, fetcher.data]);
 
   return (
