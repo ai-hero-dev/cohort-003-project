@@ -1,3 +1,4 @@
+import { data } from "react-router";
 import type { z } from "zod";
 
 type ParseSuccess<T> = { success: true; data: T };
@@ -31,6 +32,23 @@ export function parseFormData<T extends z.ZodType>(
   }
 
   return { success: false, errors };
+}
+
+/**
+ * Validates route params with a Zod schema.
+ * Throws a 400 response on failure (params are never user-correctable form errors).
+ */
+export function parseParams<T extends z.ZodType>(
+  params: Record<string, string | undefined>,
+  schema: T
+): z.infer<T> {
+  const result = schema.safeParse(params);
+
+  if (result.success) {
+    return result.data;
+  }
+
+  throw data("Invalid parameters", { status: 400 });
 }
 
 /**
