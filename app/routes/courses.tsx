@@ -62,7 +62,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const categories = getAllCategories();
 
-  return { courses: coursesWithLessonCount, categories, search, category };
+  return { courses: coursesWithLessonCount, categories, search, category, currentUserId };
 }
 
 function CourseCardSkeleton() {
@@ -107,7 +107,7 @@ export function HydrateFallback() {
 }
 
 export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
-  const { courses, categories, search, category } = loaderData;
+  const { courses, categories, search, category, currentUserId } = loaderData;
   const [searchParams] = useSearchParams();
   const navigation = useNavigation();
   const isSearching =
@@ -184,8 +184,13 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
                   />
                 </div>
                 <CardHeader>
-                  <div className="mb-1 text-xs font-medium text-primary">
-                    {course.categoryName}
+                  <div className="mb-1 flex items-center gap-2 text-xs font-medium">
+                    <span className="text-primary">{course.categoryName}</span>
+                    {currentUserId !== null && course.instructorId === currentUserId && (
+                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        Your Course
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-lg font-semibold leading-tight group-hover:text-primary">
                     {course.title}
