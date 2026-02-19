@@ -1,20 +1,38 @@
-import { Form, Link, useSearchParams, useNavigation, isRouteErrorResponse } from "react-router";
+import {
+  Form,
+  Link,
+  useSearchParams,
+  useNavigation,
+  isRouteErrorResponse,
+} from "react-router";
 import type { Route } from "./+types/courses";
-import { buildCourseQuery, getLessonCountForCourse } from "~/services/courseService";
+import {
+  buildCourseQuery,
+  getLessonCountForCourse,
+} from "~/services/courseService";
 import { getAllCategories } from "~/services/categoryService";
 import { CourseStatus } from "~/db/schema";
-import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { AlertTriangle, BookOpen, Search } from "lucide-react";
+import { AlertTriangle, BookOpen, Search, Star } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
 import { getCurrentUserId } from "~/lib/session";
 import { formatPrice } from "~/lib/utils";
 import { getUserEnrolledCourses } from "~/services/enrollmentService";
-import { calculateProgress, getCompletedLessonCount } from "~/services/progressService";
+import {
+  calculateProgress,
+  getCompletedLessonCount,
+} from "~/services/progressService";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice } from "~/lib/ppp";
+import { getAverageRatingsForCourses } from "~/services/ratingService";
 
 export function meta() {
   return [
@@ -49,29 +67,49 @@ export async function loader({ request }: Route.LoaderArgs) {
     const enrollments = getUserEnrolledCourses(currentUserId);
     for (const enrollment of enrollments) {
       progressMap.set(enrollment.courseId, {
-        progress: calculateProgress(currentUserId, enrollment.courseId, false, false),
-        completedLessons: getCompletedLessonCount(currentUserId, enrollment.courseId),
+        progress: calculateProgress(
+          currentUserId,
+          enrollment.courseId,
+          false,
+          false
+        ),
+        completedLessons: getCompletedLessonCount(
+          currentUserId,
+          enrollment.courseId
+        ),
       });
     }
   }
+
+  const courseIds = courses.map((c) => c.id);
+  const ratingsMap = getAverageRatingsForCourses(courseIds);
 
   const coursesWithLessonCount = courses.map((course) => {
     const userProgress = progressMap.get(course.id);
     const pppPrice = course.pppEnabled
       ? calculatePppPrice(course.price, country)
       : course.price;
+    const ratingData = ratingsMap.get(course.id);
     return {
       ...course,
       lessonCount: getLessonCountForCourse(course.id),
       progress: userProgress?.progress ?? null,
       completedLessons: userProgress?.completedLessons ?? null,
       pppPrice,
+      averageRating: ratingData?.average ?? null,
+      ratingCount: ratingData?.count ?? 0,
     };
   });
 
   const categories = getAllCategories();
 
-  return { courses: coursesWithLessonCount, categories, search, category, currentUserId };
+  return {
+    courses: coursesWithLessonCount,
+    categories,
+    search,
+    category,
+    currentUserId,
+  };
 }
 
 function CourseCardSkeleton() {
@@ -195,11 +233,12 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
                 <CardHeader>
                   <div className="mb-1 flex items-center gap-2 text-xs font-medium">
                     <span className="text-primary">{course.categoryName}</span>
-                    {currentUserId !== null && course.instructorId === currentUserId && (
-                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                        Your Course
-                      </span>
-                    )}
+                    {currentUserId !== null &&
+                      course.instructorId === currentUserId && (
+                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          Your Course
+                        </span>
+                      )}
                   </div>
                   <h3 className="text-lg font-semibold leading-tight group-hover:text-primary">
                     {course.title}
@@ -234,6 +273,18 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
                       className="size-5"
                     />
                     {course.instructorName}
+                    {course.averageRating !== null && (
+                      <>
+                        <span className="text-muted-foreground/40">·</span>
+                        <span className="flex items-center gap-0.5">
+                          <Star className="size-3 fill-amber-400 text-amber-400" />
+                          <span>{course.averageRating}</span>
+                          <span className="text-muted-foreground/60">
+                            ({course.ratingCount})
+                          </span>
+                        </span>
+                      </>
+                    )}
                   </span>
                   <span className="font-semibold text-foreground">
                     {course.pppPrice < course.price ? (

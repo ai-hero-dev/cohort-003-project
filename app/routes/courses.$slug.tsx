@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams, useFetcher } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug";
 import {
@@ -33,15 +33,23 @@ import {
   Clock,
   Pencil,
   PlayCircle,
+  Star,
   Users,
 } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
 import { data, isRouteErrorResponse } from "react-router";
+import { z } from "zod";
 import { formatDuration, formatPrice } from "~/lib/utils";
+import { parseFormData } from "~/lib/validation";
 import { renderMarkdown } from "~/lib/markdown.server";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
+import {
+  getAverageRating,
+  getUserRating,
+  rateCourse,
+} from "~/services/ratingService";
 
 export function meta({ data: loaderData }: Route.MetaArgs) {
   const title = loaderData?.course?.title ?? "Course";
@@ -71,6 +79,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   let progress = 0;
   let lessonProgressMap: Record<number, string> = {};
   let nextLessonId: number | null = null;
+  let userRating: number | null = null;
 
   if (currentUserId) {
     enrolled = isUserEnrolled(currentUserId, course.id);
@@ -88,8 +97,15 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
       const nextLesson = getNextIncompleteLesson(currentUserId, course.id);
       nextLessonId = nextLesson?.id ?? null;
+
+      const existingRating = getUserRating(currentUserId, course.id);
+      userRating = existingRating?.rating ?? null;
     }
   }
+
+  const { average: averageRating, count: ratingCount } = getAverageRating(
+    course.id
+  );
 
   // Render sales copy from Markdown to HTML server-side
   const salesCopyHtml = courseWithDetails.salesCopy
@@ -113,10 +129,44 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     currentUserId,
     pppPrice,
     tierInfo,
+    averageRating,
+    ratingCount,
+    userRating,
   };
 }
 
-// No action — enrollment is handled via the purchase confirmation page
+const rateActionSchema = z.discriminatedUnion("intent", [
+  z.object({
+    intent: z.literal("rate-course"),
+    rating: z.coerce.number().int().min(1).max(5),
+  }),
+]);
+
+export async function action({ params, request }: Route.ActionArgs) {
+  const currentUserId = await getCurrentUserId(request);
+  if (!currentUserId) {
+    throw data("Sign in required", { status: 401 });
+  }
+
+  const course = getCourseBySlug(params.slug);
+  if (!course) {
+    throw data("Course not found", { status: 404 });
+  }
+
+  if (!isUserEnrolled(currentUserId, course.id)) {
+    throw data("You must be enrolled to rate this course", { status: 403 });
+  }
+
+  const formData = await request.formData();
+  const parsed = parseFormData(formData, rateActionSchema);
+
+  if (!parsed.success) {
+    throw data("Invalid rating", { status: 400 });
+  }
+
+  rateCourse(currentUserId, course.id, parsed.data.rating);
+  return { success: true };
+}
 
 export function HydrateFallback() {
   return (
@@ -181,6 +231,9 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     currentUserId,
     pppPrice,
     tierInfo,
+    averageRating,
+    ratingCount,
+    userRating,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -320,6 +373,24 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               {formatDuration(totalDuration, true, false, false)} total
             </span>
           )}
+          {averageRating !== null && (
+            <span className="flex items-center gap-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star
+                  key={i}
+                  className={`size-4 ${
+                    i < Math.round(averageRating)
+                      ? "fill-amber-400 text-amber-400"
+                      : "text-muted-foreground/30"
+                  }`}
+                />
+              ))}
+              <span className="ml-0.5 font-medium text-foreground">
+                {averageRating}
+              </span>
+              <span>({ratingCount})</span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -413,6 +484,12 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                       Buy More Seats
                     </Button>
                   </Link>
+                  {!isInstructor && (
+                    <RatingWidget
+                      courseSlug={course.slug}
+                      userRating={userRating}
+                    />
+                  )}
                 </>
               ) : (
                 enrollButton
@@ -446,6 +523,74 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+function RatingWidget({
+  courseSlug,
+  userRating,
+}: {
+  courseSlug: string;
+  userRating: number | null;
+}) {
+  const fetcher = useFetcher();
+  const [hoveredStar, setHoveredStar] = useState<number | null>(null);
+
+  const optimisticRating = fetcher.formData
+    ? Number(fetcher.formData.get("rating"))
+    : userRating;
+  const isSubmitting = fetcher.state !== "idle";
+
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.success) {
+      toast.success("Rating saved!");
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  return (
+    <div className="border-t pt-4">
+      <p className="mb-2 text-sm font-medium">Rate this course</p>
+      <div className="flex gap-1">
+        {Array.from({ length: 5 }).map((_, i) => {
+          const starValue = i + 1;
+          const isFilled =
+            hoveredStar !== null
+              ? starValue <= hoveredStar
+              : optimisticRating !== null && starValue <= optimisticRating;
+
+          return (
+            <fetcher.Form
+              key={i}
+              method="post"
+              action={`/courses/${courseSlug}`}
+            >
+              <input type="hidden" name="intent" value="rate-course" />
+              <input type="hidden" name="rating" value={starValue} />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="rounded p-0.5 transition-colors hover:bg-muted disabled:opacity-50"
+                onMouseEnter={() => setHoveredStar(starValue)}
+                onMouseLeave={() => setHoveredStar(null)}
+              >
+                <Star
+                  className={`size-6 transition-colors ${
+                    isFilled
+                      ? "fill-amber-400 text-amber-400"
+                      : "text-muted-foreground/30 hover:text-amber-300"
+                  }`}
+                />
+              </button>
+            </fetcher.Form>
+          );
+        })}
+      </div>
+      {optimisticRating !== null && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Your rating: {optimisticRating}/5
+        </p>
+      )}
     </div>
   );
 }

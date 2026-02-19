@@ -116,6 +116,23 @@ export const enrollments = sqliteTable("enrollments", {
   completedAt: text("completed_at"),
 });
 
+export const courseRatings = sqliteTable("course_ratings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  courseId: integer("course_id")
+    .notNull()
+    .references(() => courses.id),
+  rating: integer("rating").notNull(), // 1-5
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
 export const lessonProgress = sqliteTable("lesson_progress", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id")
