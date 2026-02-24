@@ -271,6 +271,19 @@ export const coupons = sqliteTable("coupons", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+export const lessonBookmarks = sqliteTable("lesson_bookmarks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  lessonId: integer("lesson_id")
+    .notNull()
+    .references(() => lessons.id),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
 export const videoWatchEvents = sqliteTable("video_watch_events", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id")
