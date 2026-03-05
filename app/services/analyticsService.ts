@@ -369,3 +369,58 @@ export function getAdminAnalyticsSummary(opts: {
       : null,
   };
 }
+
+export function getAdminRevenueTimeSeries(opts: {
+  period: TimePeriod;
+}): RevenueDataPoint[] {
+  const { period } = opts;
+
+  const now = new Date();
+  const useDaily = period === "7d" || period === "30d";
+
+  let rangeStart: Date;
+  const startDateStr = getStartDate(period);
+  if (startDateStr) {
+    rangeStart = new Date(startDateStr);
+  } else {
+    // "all" period: find the earliest purchase date across all courses
+    const earliest = db
+      .select({
+        minDate: sql<string | null>`min(${purchases.createdAt})`,
+      })
+      .from(purchases)
+      .get();
+
+    if (!earliest?.minDate) return [];
+    rangeStart = new Date(earliest.minDate);
+  }
+
+  const keys = useDaily
+    ? generateDailyKeys(rangeStart, now)
+    : generateMonthlyKeys(rangeStart, now);
+
+  const groupExpr = useDaily
+    ? sql<string>`substr(${purchases.createdAt}, 1, 10)`
+    : sql<string>`substr(${purchases.createdAt}, 1, 7)`;
+
+  const whereClause = startDateStr
+    ? sql`${purchases.createdAt} >= ${startDateStr}`
+    : sql`1=1`;
+
+  const rows = db
+    .select({
+      dateKey: groupExpr,
+      revenue: sql<number>`coalesce(sum(${purchases.pricePaid}), 0)`,
+    })
+    .from(purchases)
+    .where(whereClause)
+    .groupBy(groupExpr)
+    .all();
+
+  const revenueMap = new Map(rows.map((r) => [r.dateKey, r.revenue]));
+
+  return keys.map((key) => ({
+    date: key,
+    revenue: revenueMap.get(key) ?? 0,
+  }));
+}
