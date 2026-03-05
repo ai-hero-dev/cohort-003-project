@@ -16,6 +16,7 @@ import {
   getRevenueTimeSeries,
   getPerCourseBreakdown,
   getAdminAnalyticsSummary,
+  getAdminRevenueTimeSeries,
   type TimePeriod,
 } from "./analyticsService";
 
@@ -1026,7 +1027,7 @@ describe("analyticsService", () => {
       expect(result.totalRevenue).toBe(4999);
     });
 
-    it("returns null top course when no purchases in period", () => {
+    it("returns null top course when no purchases in selected period", () => {
       const twoYearsAgo = new Date();
       twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
 
@@ -1044,6 +1045,185 @@ describe("analyticsService", () => {
       const result = getAdminAnalyticsSummary({ period: "7d" });
 
       expect(result.topEarningCourse).toBeNull();
+    });
+  });
+
+  // ─── Admin Revenue Time Series ───
+
+  describe("getAdminRevenueTimeSeries", () => {
+    it("returns empty array when no purchases exist for 'all' period", () => {
+      const result = getAdminRevenueTimeSeries({ period: "all" });
+      expect(result).toEqual([]);
+    });
+
+    it("returns daily data points for 7d period", () => {
+      const now = new Date();
+      testDb
+        .insert(schema.purchases)
+        .values({
+          userId: base.user.id,
+          courseId: base.course.id,
+          pricePaid: 4999,
+          country: "US",
+          createdAt: now.toISOString(),
+        })
+        .run();
+
+      const result = getAdminRevenueTimeSeries({ period: "7d" });
+
+      expect(result.length).toBe(8);
+      expect(result[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it("returns monthly data points for 12m period", () => {
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+      testDb
+        .insert(schema.purchases)
+        .values({
+          userId: base.user.id,
+          courseId: base.course.id,
+          pricePaid: 4999,
+          country: "US",
+          createdAt: sixMonthsAgo.toISOString(),
+        })
+        .run();
+
+      const result = getAdminRevenueTimeSeries({ period: "12m" });
+
+      expect(result.length).toBe(13);
+      expect(result[0].date).toMatch(/^\d{4}-\d{2}$/);
+    });
+
+    it("fills zero-revenue periods with $0 data points", () => {
+      const fiveDaysAgo = new Date();
+      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+
+      testDb
+        .insert(schema.purchases)
+        .values({
+          userId: base.user.id,
+          courseId: base.course.id,
+          pricePaid: 4999,
+          country: "US",
+          createdAt: fiveDaysAgo.toISOString(),
+        })
+        .run();
+
+      const result = getAdminRevenueTimeSeries({ period: "7d" });
+
+      const zeroDays = result.filter((p) => p.revenue === 0);
+      expect(zeroDays.length).toBe(7);
+
+      const purchaseDay = result.find((p) => p.revenue > 0);
+      expect(purchaseDay?.revenue).toBe(4999);
+    });
+
+    it("aggregates revenue across all instructors' courses", () => {
+      const otherInstructor = testDb
+        .insert(schema.users)
+        .values({
+          name: "Other Instructor",
+          email: "other@example.com",
+          role: schema.UserRole.Instructor,
+        })
+        .returning()
+        .get();
+
+      const otherCourse = testDb
+        .insert(schema.courses)
+        .values({
+          title: "Other Course",
+          slug: "other-course",
+          description: "Another course",
+          instructorId: otherInstructor.id,
+          categoryId: base.category.id,
+          status: schema.CourseStatus.Published,
+          price: 2999,
+        })
+        .returning()
+        .get();
+
+      const now = new Date();
+      testDb
+        .insert(schema.purchases)
+        .values([
+          {
+            userId: base.user.id,
+            courseId: base.course.id,
+            pricePaid: 4999,
+            country: "US",
+            createdAt: now.toISOString(),
+          },
+          {
+            userId: base.user.id,
+            courseId: otherCourse.id,
+            pricePaid: 2999,
+            country: "US",
+            createdAt: now.toISOString(),
+          },
+        ])
+        .run();
+
+      const result = getAdminRevenueTimeSeries({ period: "7d" });
+
+      const totalRevenue = result.reduce((sum, p) => sum + p.revenue, 0);
+      expect(totalRevenue).toBe(7998);
+    });
+
+    it("respects time period filter", () => {
+      const now = new Date();
+      const threeDaysAgo = new Date(now);
+      threeDaysAgo.setDate(now.getDate() - 3);
+      const tenDaysAgo = new Date(now);
+      tenDaysAgo.setDate(now.getDate() - 10);
+
+      testDb
+        .insert(schema.purchases)
+        .values([
+          {
+            userId: base.user.id,
+            courseId: base.course.id,
+            pricePaid: 4999,
+            country: "US",
+            createdAt: threeDaysAgo.toISOString(),
+          },
+          {
+            userId: base.instructor.id,
+            courseId: base.course.id,
+            pricePaid: 2500,
+            country: "US",
+            createdAt: tenDaysAgo.toISOString(),
+          },
+        ])
+        .run();
+
+      const result = getAdminRevenueTimeSeries({ period: "7d" });
+
+      const totalRevenue = result.reduce((sum, p) => sum + p.revenue, 0);
+      expect(totalRevenue).toBe(4999);
+    });
+
+    it("returns monthly data for 'all' period based on earliest purchase", () => {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+      testDb
+        .insert(schema.purchases)
+        .values({
+          userId: base.user.id,
+          courseId: base.course.id,
+          pricePaid: 4999,
+          country: "US",
+          createdAt: threeMonthsAgo.toISOString(),
+        })
+        .run();
+
+      const result = getAdminRevenueTimeSeries({ period: "all" });
+
+      expect(result.length).toBe(4);
+      expect(result[0].date).toMatch(/^\d{4}-\d{2}$/);
     });
   });
 });
