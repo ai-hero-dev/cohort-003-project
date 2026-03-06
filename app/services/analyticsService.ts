@@ -370,6 +370,136 @@ export function getAdminAnalyticsSummary(opts: {
   };
 }
 
+// ─── Admin Per-Course Breakdown ───
+
+export interface AdminCourseAnalytics {
+  courseId: number;
+  title: string;
+  slug: string;
+  instructorName: string;
+  listPrice: number;
+  revenue: number;
+  salesCount: number;
+  enrollmentCount: number;
+  averageRating: number | null;
+  ratingCount: number;
+}
+
+export function getAdminPerCourseBreakdown(opts: {
+  period: TimePeriod;
+  instructorId?: number;
+}): AdminCourseAnalytics[] {
+  const { period, instructorId } = opts;
+  const startDate = getStartDate(period);
+
+  const allCourses = instructorId
+    ? db
+        .select({
+          id: courses.id,
+          title: courses.title,
+          slug: courses.slug,
+          price: courses.price,
+          instructorId: courses.instructorId,
+        })
+        .from(courses)
+        .where(eq(courses.instructorId, instructorId))
+        .all()
+    : db
+        .select({
+          id: courses.id,
+          title: courses.title,
+          slug: courses.slug,
+          price: courses.price,
+          instructorId: courses.instructorId,
+        })
+        .from(courses)
+        .all();
+
+  if (allCourses.length === 0) return [];
+
+  // Build instructor name lookup
+  const instructorIds = [...new Set(allCourses.map((c) => c.instructorId))];
+  const instructorIdList = sql.join(
+    instructorIds.map((id) => sql`${id}`),
+    sql`, `
+  );
+  const instructorRows = db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(sql`${users.id} IN (${instructorIdList})`)
+    .all();
+  const instructorMap = new Map(instructorRows.map((r) => [r.id, r.name]));
+
+  return allCourses.map((course) => {
+    const purchaseWhere = startDate
+      ? sql`${purchases.courseId} = ${course.id} AND ${purchases.createdAt} >= ${startDate}`
+      : sql`${purchases.courseId} = ${course.id}`;
+
+    const revenueResult = db
+      .select({
+        revenue: sql<number>`coalesce(sum(${purchases.pricePaid}), 0)`,
+        salesCount: sql<number>`count(*)`,
+      })
+      .from(purchases)
+      .where(purchaseWhere)
+      .get();
+
+    const enrollmentWhere = startDate
+      ? sql`${enrollments.courseId} = ${course.id} AND ${enrollments.enrolledAt} >= ${startDate}`
+      : sql`${enrollments.courseId} = ${course.id}`;
+
+    const enrollmentResult = db
+      .select({ count: sql<number>`count(*)` })
+      .from(enrollments)
+      .where(enrollmentWhere)
+      .get();
+
+    const ratingResult = db
+      .select({
+        avg: sql<number | null>`avg(${courseRatings.rating})`,
+        count: sql<number>`count(*)`,
+      })
+      .from(courseRatings)
+      .where(sql`${courseRatings.courseId} = ${course.id}`)
+      .get();
+
+    return {
+      courseId: course.id,
+      title: course.title,
+      slug: course.slug,
+      instructorName: instructorMap.get(course.instructorId) ?? "Unknown",
+      listPrice: course.price,
+      revenue: revenueResult?.revenue ?? 0,
+      salesCount: revenueResult?.salesCount ?? 0,
+      enrollmentCount: enrollmentResult?.count ?? 0,
+      averageRating: ratingResult?.avg ?? null,
+      ratingCount: ratingResult?.count ?? 0,
+    };
+  });
+}
+
+// ─── Instructors With Courses ───
+
+export interface InstructorOption {
+  id: number;
+  name: string;
+}
+
+export function getInstructorsWithCourses(): InstructorOption[] {
+  const rows = db
+    .select({
+      id: users.id,
+      name: users.name,
+    })
+    .from(users)
+    .innerJoin(courses, eq(courses.instructorId, users.id))
+    .groupBy(users.id)
+    .orderBy(users.name)
+    .all();
+
+  return rows;
+}
+
 export function getAdminRevenueTimeSeries(opts: {
   period: TimePeriod;
 }): RevenueDataPoint[] {
