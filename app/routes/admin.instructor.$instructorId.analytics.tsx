@@ -48,10 +48,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   }
 
   const url = new URL(request.url);
-  const periodParam = url.searchParams.get("period") ?? "30d";
+  const periodParam = url.searchParams.get("period") ?? "12m";
   const period: TimePeriod = VALID_PERIODS.includes(periodParam as TimePeriod)
     ? (periodParam as TimePeriod)
-    : "30d";
+    : "12m";
 
   const summary = getAnalyticsSummary({ instructorId, period });
   const timeSeries = getRevenueTimeSeries({ instructorId, period });
