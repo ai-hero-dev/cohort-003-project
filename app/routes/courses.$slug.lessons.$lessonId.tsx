@@ -6,7 +6,7 @@ import {
   getCourseBySlug,
   getCourseWithDetails,
 } from "~/services/courseService";
-import { getLessonById } from "~/services/lessonService";
+import { getLessonById, getLessonsByModule } from "~/services/lessonService";
 import { getModuleById } from "~/services/moduleService";
 import { getCurrentUserId } from "~/lib/session";
 import { isUserEnrolled } from "~/services/enrollmentService";
@@ -15,6 +15,7 @@ import {
   getLessonProgressForCourse,
   markLessonComplete,
   markLessonInProgress,
+  isLessonCompleted,
 } from "~/services/progressService";
 import {
   getLastWatchPosition,
@@ -72,6 +73,8 @@ import {
   getBookmarkedLessonIds,
   toggleBookmark,
 } from "~/services/bookmarkService";
+import { awardXp } from "~/services/xpService";
+import { recordStreakActivity } from "~/services/streakService";
 
 const lessonParamsSchema = v.object({
   slug: v.pipe(v.string(), v.minLength(1)),
@@ -393,7 +396,27 @@ export async function action({ params, request }: Route.ActionArgs) {
 
   if (intent === "mark-complete") {
     markLessonComplete(currentUserId, lessonId);
-    return { success: true };
+    awardXp(currentUserId, 10, "lesson_complete", lessonId);
+    recordStreakActivity(currentUserId);
+
+    // Check if this completes the module
+    const lesson = getLessonById(lessonId);
+    let moduleComplete: { moduleTitle: string; totalXp: number } | null = null;
+    if (lesson) {
+      const moduleLessons = getLessonsByModule(lesson.moduleId);
+      const allComplete = moduleLessons.every(
+        (l) => l.id === lessonId || isLessonCompleted(currentUserId, l.id)
+      );
+      if (allComplete) {
+        const moduleRecord = getModuleById(lesson.moduleId);
+        moduleComplete = {
+          moduleTitle: moduleRecord?.title ?? "Module",
+          totalXp: moduleLessons.length * 10,
+        };
+      }
+    }
+
+    return { success: true, moduleComplete };
   }
 
   if (intent === "toggle-bookmark") {
@@ -425,6 +448,10 @@ export async function action({ params, request }: Route.ActionArgs) {
     const result = computeResult(currentUserId, quizId, selectedAnswers);
     if (!result) {
       throw data("Failed to score quiz", { status: 500 });
+    }
+
+    if (result.passed) {
+      awardXp(currentUserId, 5, "quiz_pass", quizId);
     }
 
     return { quizResult: result };
@@ -547,12 +574,20 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
   const isCompleted =
     lessonStatus === LessonProgressStatus.Completed || justCompleted;
 
-  // Navigate to next lesson after marking complete
+  // Show module completion toast and navigate to next lesson
   useEffect(() => {
-    if (justCompleted && nextLesson) {
-      navigate(`/courses/${course.slug}/lessons/${nextLesson.id}`);
+    if (justCompleted) {
+      const moduleData = fetcher.data?.moduleComplete;
+      if (moduleData) {
+        toast.success(
+          `Module complete! +${moduleData.totalXp} XP earned in "${moduleData.moduleTitle}"`
+        );
+      }
+      if (nextLesson) {
+        navigate(`/courses/${course.slug}/lessons/${nextLesson.id}`);
+      }
     }
-  }, [justCompleted, nextLesson, course.slug, navigate]);
+  }, [justCompleted, nextLesson, course.slug, navigate, fetcher.data]);
 
   const quizResult = quizFetcher.data?.quizResult ?? null;
   const isSubmittingQuiz = quizFetcher.state !== "idle";
