@@ -6,7 +6,7 @@ This skill will be invoked when the user wants to create a PRD. You should go th
 
 3. Interview the user relentlessly about every aspect of this plan until you reach a shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one.
 
-4. Once you have a complete understanding of the problem and solution, use the template below to write the PRD. The PRD should be written in the `plans/prd-name.md` file.
+4. Once you have a complete understanding of the problem and solution, use the template below to write the PRD. The PRD should be submitted as a GitHub issue.
 
 <prd-template>
 
