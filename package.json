@@ -21,6 +21,7 @@
     "@react-router/node": "7.12.0",
     "@react-router/serve": "7.12.0",
     "@tailwindcss/typography": "^0.5.19",
+    "ably": "^2.19.0",
     "better-sqlite3": "^11.9.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
