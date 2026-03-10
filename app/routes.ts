@@ -61,4 +61,6 @@ export default [
     "api/notifications/mark-all-read",
     "routes/api.notifications.mark-all-read.ts"
   ),
+  route("api/ably-auth", "routes/api.ably-auth.ts"),
+  route("dev/presence", "routes/dev.presence.tsx"),
 ] satisfies RouteConfig;
