@@ -1,7 +1,7 @@
 import { Link, useFetcher, redirect } from "react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/redeem.$code";
 import { getCourseById } from "~/services/courseService";
 import { getCouponByCode, redeemCoupon } from "~/services/couponService";
@@ -17,12 +17,12 @@ import { db } from "~/db";
 import { purchases } from "~/db/schema";
 import { eq } from "drizzle-orm";
 
-const redeemParamsSchema = z.object({
-  code: z.string().min(1),
+const redeemParamsSchema = v.object({
+  code: v.pipe(v.string(), v.minLength(1)),
 });
 
-const redeemActionSchema = z.object({
-  intent: z.literal("confirm-redeem"),
+const redeemActionSchema = v.object({
+  intent: v.literal("confirm-redeem"),
 });
 
 export function meta({ data: loaderData }: Route.MetaArgs) {

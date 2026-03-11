@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/admin.users";
-import { getAllUsers, updateUser, updateUserRole } from "~/services/userService";
+import {
+  getAllUsers,
+  updateUser,
+  updateUserRole,
+} from "~/services/userService";
 import { getCurrentUserId } from "~/lib/session";
 import { getUserById } from "~/services/userService";
 import { parseFormData } from "~/lib/validation";
@@ -21,17 +25,21 @@ import {
 import { AlertTriangle, Pencil, Shield, Users } from "lucide-react";
 import { data, isRouteErrorResponse, Link } from "react-router";
 
-const adminUserActionSchema = z.discriminatedUnion("intent", [
-  z.object({
-    intent: z.literal("update-user"),
-    userId: z.coerce.number().int(),
-    name: z.string().trim().min(1, "Name cannot be empty."),
-    email: z.string().trim().min(1, "Email cannot be empty."),
+const adminUserActionSchema = v.variant("intent", [
+  v.object({
+    intent: v.literal("update-user"),
+    userId: v.pipe(v.unknown(), v.transform(Number), v.integer()),
+    name: v.pipe(v.string(), v.trim(), v.minLength(1, "Name cannot be empty.")),
+    email: v.pipe(
+      v.string(),
+      v.trim(),
+      v.minLength(1, "Email cannot be empty.")
+    ),
   }),
-  z.object({
-    intent: z.literal("update-role"),
-    userId: z.coerce.number().int(),
-    role: z.nativeEnum(UserRole),
+  v.object({
+    intent: v.literal("update-role"),
+    userId: v.pipe(v.unknown(), v.transform(Number), v.integer()),
+    role: v.enum(UserRole),
   }),
 ]);
 
@@ -80,7 +88,10 @@ export async function action({ request }: Route.ActionArgs) {
   const parsed = parseFormData(formData, adminUserActionSchema);
 
   if (!parsed.success) {
-    return data({ error: Object.values(parsed.errors)[0] ?? "Invalid input." }, { status: 400 });
+    return data(
+      { error: Object.values(parsed.errors)[0] ?? "Invalid input." },
+      { status: 400 }
+    );
   }
 
   const { intent } = parsed.data;
@@ -304,11 +315,21 @@ function EditableUserRow({
 function TableRowSkeleton() {
   return (
     <tr className="border-b border-border last:border-0">
-      <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-40" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-8 w-32" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
-      <td className="px-4 py-3"><Skeleton className="size-7" /></td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-28" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-40" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-8 w-32" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-24" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="size-7" />
+      </td>
     </tr>
   );
 }
@@ -327,11 +348,21 @@ export function HydrateFallback() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Role</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Created</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Name
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Email
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Role
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Created
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -427,10 +458,16 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(error)) {
     if (error.status === 401) {
       title = "Sign in required";
-      message = typeof error.data === "string" ? error.data : "Please select a user from the DevUI panel.";
+      message =
+        typeof error.data === "string"
+          ? error.data
+          : "Please select a user from the DevUI panel.";
     } else if (error.status === 403) {
       title = "Access denied";
-      message = typeof error.data === "string" ? error.data : "Only admins can access this page.";
+      message =
+        typeof error.data === "string"
+          ? error.data
+          : "Only admins can access this page.";
     } else {
       title = `Error ${error.status}`;
       message = typeof error.data === "string" ? error.data : error.statusText;

@@ -1,11 +1,16 @@
 import { redirect } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/api.switch-user";
 import { setCurrentUserId } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
 
-const switchUserSchema = z.object({
-  userId: z.coerce.number().int().positive("Invalid user ID"),
+const switchUserSchema = v.object({
+  userId: v.pipe(
+    v.unknown(),
+    v.transform(Number),
+    v.integer(),
+    v.minValue(1, "Invalid user ID")
+  ),
 });
 
 export async function action({ request }: Route.ActionArgs) {

@@ -1,6 +1,12 @@
-import { Form, Link, useActionData, useNavigation, useSearchParams } from "react-router";
+import {
+  Form,
+  Link,
+  useActionData,
+  useNavigation,
+  useSearchParams,
+} from "react-router";
 import { redirect, data } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/signup";
 import { getUserByEmail, createUser } from "~/services/userService";
 import { UserRole } from "~/db/schema";
@@ -10,14 +16,15 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 
-const signupSchema = z.object({
-  name: z.string().trim().min(1, "Name is required."),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .min(1, "Email is required.")
-    .email("Please enter a valid email address."),
+const signupSchema = v.object({
+  name: v.pipe(v.string(), v.trim(), v.minLength(1, "Name is required.")),
+  email: v.pipe(
+    v.string(),
+    v.trim(),
+    v.toLowerCase(),
+    v.minLength(1, "Email is required."),
+    v.email("Please enter a valid email address.")
+  ),
 });
 
 export function meta() {
@@ -32,7 +39,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (currentUserId) {
     const url = new URL(request.url);
     const redirectTo = url.searchParams.get("redirectTo");
-    const destination = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/courses";
+    const destination =
+      redirectTo && redirectTo.startsWith("/") ? redirectTo : "/courses";
     throw redirect(destination);
   }
   return {};
@@ -59,7 +67,8 @@ export async function action({ request }: Route.ActionArgs) {
 
   const url = new URL(request.url);
   const redirectTo = url.searchParams.get("redirectTo");
-  const destination = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/courses";
+  const destination =
+    redirectTo && redirectTo.startsWith("/") ? redirectTo : "/courses";
 
   // If email already exists, silently log them in
   const existingUser = getUserByEmail(email);
@@ -145,11 +154,7 @@ export default function SignUp() {
                 )}
               </div>
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? "Creating account..." : "Sign Up"}
               </Button>
             </Form>
@@ -158,7 +163,14 @@ export default function SignUp() {
 
         <p className="mt-4 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link to={redirectTo ? `/login?redirectTo=${encodeURIComponent(redirectTo)}` : "/login"} className="font-medium text-primary hover:underline">
+          <Link
+            to={
+              redirectTo
+                ? `/login?redirectTo=${encodeURIComponent(redirectTo)}`
+                : "/login"
+            }
+            className="font-medium text-primary hover:underline"
+          >
             Log in
           </Link>
         </p>

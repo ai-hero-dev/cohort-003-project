@@ -14,22 +14,29 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { MonacoMarkdownEditor } from "~/components/monaco-markdown-editor";
-import { AlertTriangle, ArrowLeft, ClipboardList, ExternalLink, Github, Save } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ClipboardList,
+  ExternalLink,
+  Github,
+  Save,
+} from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import { parseFormData, parseParams } from "~/lib/validation";
 
-const instructorLessonParamsSchema = z.object({
-  courseId: z.coerce.number().int(),
-  lessonId: z.coerce.number().int(),
+const instructorLessonParamsSchema = v.object({
+  courseId: v.pipe(v.unknown(), v.transform(Number), v.integer()),
+  lessonId: v.pipe(v.unknown(), v.transform(Number), v.integer()),
 });
 
-const updateLessonSchema = z.object({
-  intent: z.literal("update-lesson"),
-  content: z.string().optional(),
-  videoUrl: z.string().trim().optional(),
-  durationMinutes: z.string().optional(),
-  githubRepoUrl: z.string().trim().optional(),
+const updateLessonSchema = v.object({
+  intent: v.literal("update-lesson"),
+  content: v.optional(v.string()),
+  videoUrl: v.optional(v.pipe(v.string(), v.trim())),
+  durationMinutes: v.optional(v.string()),
+  githubRepoUrl: v.optional(v.pipe(v.string(), v.trim())),
 });
 
 export function meta({ data: loaderData }: Route.MetaArgs) {
@@ -51,7 +58,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   const user = getUserById(currentUserId);
 
-  if (!user || (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)) {
+  if (
+    !user ||
+    (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
+  ) {
     throw data("Only instructors and admins can access this page.", {
       status: 403,
     });
@@ -100,11 +110,19 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   const user = getUserById(currentUserId);
-  if (!user || (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)) {
-    throw data("Only instructors and admins can edit lessons.", { status: 403 });
+  if (
+    !user ||
+    (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
+  ) {
+    throw data("Only instructors and admins can edit lessons.", {
+      status: 403,
+    });
   }
 
-  const { courseId, lessonId } = parseParams(params, instructorLessonParamsSchema);
+  const { courseId, lessonId } = parseParams(
+    params,
+    instructorLessonParamsSchema
+  );
 
   const course = getCourseById(courseId);
   if (!course) {
@@ -129,18 +147,39 @@ export async function action({ params, request }: Route.ActionArgs) {
   const parsed = parseFormData(formData, updateLessonSchema);
 
   if (!parsed.success) {
-    return data({ error: Object.values(parsed.errors)[0] ?? "Invalid input." }, { status: 400 });
+    return data(
+      { error: Object.values(parsed.errors)[0] ?? "Invalid input." },
+      { status: 400 }
+    );
   }
 
   if (parsed.data.intent === "update-lesson") {
-    const { content, videoUrl, durationMinutes: durationStr, githubRepoUrl } = parsed.data;
+    const {
+      content,
+      videoUrl,
+      durationMinutes: durationStr,
+      githubRepoUrl,
+    } = parsed.data;
     const durationMinutes = durationStr ? parseInt(durationStr, 10) : null;
 
-    if (durationMinutes !== null && (isNaN(durationMinutes) || durationMinutes < 0)) {
-      return data({ error: "Duration must be a positive number." }, { status: 400 });
+    if (
+      durationMinutes !== null &&
+      (isNaN(durationMinutes) || durationMinutes < 0)
+    ) {
+      return data(
+        { error: "Duration must be a positive number." },
+        { status: 400 }
+      );
     }
 
-    updateLesson(lessonId, null, content ?? null, videoUrl || null, durationMinutes, githubRepoUrl || null);
+    updateLesson(
+      lessonId,
+      null,
+      content ?? null,
+      videoUrl || null,
+      durationMinutes,
+      githubRepoUrl || null
+    );
     return { success: true };
   }
 
@@ -218,10 +257,7 @@ export default function InstructorLessonEditor({
               <Button variant="outline" onClick={() => blocker.reset()}>
                 Stay on Page
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => blocker.proceed()}
-              >
+              <Button variant="destructive" onClick={() => blocker.proceed()}>
                 Leave Page
               </Button>
             </CardContent>
@@ -235,10 +271,7 @@ export default function InstructorLessonEditor({
           My Courses
         </Link>
         <span className="mx-2">/</span>
-        <Link
-          to={`/instructor/${course.id}`}
-          className="hover:text-foreground"
-        >
+        <Link to={`/instructor/${course.id}`} className="hover:text-foreground">
           {course.title}
         </Link>
         <span className="mx-2">/</span>
@@ -365,9 +398,7 @@ export default function InstructorLessonEditor({
             </p>
           </CardHeader>
           <CardContent>
-            <Link
-              to={`/instructor/${course.id}/lessons/${lesson.id}/quiz`}
-            >
+            <Link to={`/instructor/${course.id}/lessons/${lesson.id}/quiz`}>
               <Button variant="outline">
                 <ClipboardList className="mr-1.5 size-4" />
                 {quiz ? "Edit Quiz" : "Create Quiz"}
@@ -403,13 +434,20 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(error)) {
     if (error.status === 404) {
       title = "Lesson not found";
-      message = "The lesson you're looking for doesn't exist or may have been removed.";
+      message =
+        "The lesson you're looking for doesn't exist or may have been removed.";
     } else if (error.status === 401) {
       title = "Sign in required";
-      message = typeof error.data === "string" ? error.data : "Please select a user from the DevUI panel.";
+      message =
+        typeof error.data === "string"
+          ? error.data
+          : "Please select a user from the DevUI panel.";
     } else if (error.status === 403) {
       title = "Access denied";
-      message = typeof error.data === "string" ? error.data : "You don't have permission to edit this lesson.";
+      message =
+        typeof error.data === "string"
+          ? error.data
+          : "You don't have permission to edit this lesson.";
     } else {
       title = `Error ${error.status}`;
       message = typeof error.data === "string" ? error.data : error.statusText;

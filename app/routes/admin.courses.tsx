@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/admin.courses";
 import {
   getAllCourses,
@@ -26,11 +26,11 @@ import {
 import { AlertTriangle, BookOpen, Users } from "lucide-react";
 import { data, isRouteErrorResponse, Link } from "react-router";
 
-const adminCourseActionSchema = z.discriminatedUnion("intent", [
-  z.object({
-    intent: z.literal("update-status"),
-    courseId: z.coerce.number().int(),
-    status: z.nativeEnum(CourseStatus),
+const adminCourseActionSchema = v.variant("intent", [
+  v.object({
+    intent: v.literal("update-status"),
+    courseId: v.pipe(v.unknown(), v.transform(Number), v.integer()),
+    status: v.enum(CourseStatus),
   }),
 ]);
 
@@ -85,7 +85,10 @@ export async function action({ request }: Route.ActionArgs) {
   const parsed = parseFormData(formData, adminCourseActionSchema);
 
   if (!parsed.success) {
-    return data({ error: Object.values(parsed.errors)[0] ?? "Invalid input." }, { status: 400 });
+    return data(
+      { error: Object.values(parsed.errors)[0] ?? "Invalid input." },
+      { status: 400 }
+    );
   }
 
   const { intent } = parsed.data;
@@ -150,7 +153,11 @@ function CourseRow({
 
   function handleStatusChange(newStatus: string) {
     statusFetcher.submit(
-      { intent: "update-status", courseId: String(course.id), status: newStatus },
+      {
+        intent: "update-status",
+        courseId: String(course.id),
+        status: newStatus,
+      },
       { method: "post" }
     );
   }
@@ -165,7 +172,10 @@ function CourseRow({
     <tr className="border-b border-border last:border-0">
       <td className="px-4 py-3">
         <div>
-          <Link to={`/instructor/${course.id}`} className="text-sm font-medium hover:underline">
+          <Link
+            to={`/instructor/${course.id}`}
+            className="text-sm font-medium hover:underline"
+          >
             {course.title}
           </Link>
           <p className="text-xs text-muted-foreground">{course.slug}</p>
@@ -209,10 +219,18 @@ function CourseRowSkeleton() {
         <Skeleton className="mb-1 h-4 w-40" />
         <Skeleton className="h-3 w-24" />
       </td>
-      <td className="px-4 py-3"><Skeleton className="h-8 w-32" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-8" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-8" /></td>
-      <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-8 w-32" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-8" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-8" />
+      </td>
+      <td className="px-4 py-3">
+        <Skeleton className="h-4 w-24" />
+      </td>
     </tr>
   );
 }
@@ -231,11 +249,21 @@ export function HydrateFallback() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Course</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Lessons</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Students</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Created</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Course
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Lessons
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Students
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Created
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -331,10 +359,16 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(error)) {
     if (error.status === 401) {
       title = "Sign in required";
-      message = typeof error.data === "string" ? error.data : "Please select a user from the DevUI panel.";
+      message =
+        typeof error.data === "string"
+          ? error.data
+          : "Please select a user from the DevUI panel.";
     } else if (error.status === 403) {
       title = "Access denied";
-      message = typeof error.data === "string" ? error.data : "Only admins can access this page.";
+      message =
+        typeof error.data === "string"
+          ? error.data
+          : "Only admins can access this page.";
     } else {
       title = `Error ${error.status}`;
       message = typeof error.data === "string" ? error.data : error.statusText;

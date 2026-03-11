@@ -1,7 +1,7 @@
 import { Link, useFetcher, redirect, useSearchParams } from "react-router";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/courses.$slug.purchase";
 import {
   getCourseBySlug,
@@ -34,15 +34,20 @@ import { calculatePppPrice, getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { createPurchase, createTeamPurchase } from "~/services/purchaseService";
 import { parseFormData, parseParams } from "~/lib/validation";
 
-const purchaseParamsSchema = z.object({
-  slug: z.string().min(1),
+const purchaseParamsSchema = v.object({
+  slug: v.pipe(v.string(), v.minLength(1)),
 });
 
-const purchaseActionSchema = z.discriminatedUnion("intent", [
-  z.object({ intent: z.literal("confirm-purchase") }),
-  z.object({
-    intent: z.literal("confirm-team-purchase"),
-    quantity: z.coerce.number().int().min(1),
+const purchaseActionSchema = v.variant("intent", [
+  v.object({ intent: v.literal("confirm-purchase") }),
+  v.object({
+    intent: v.literal("confirm-team-purchase"),
+    quantity: v.pipe(
+      v.unknown(),
+      v.transform(Number),
+      v.integer(),
+      v.minValue(1)
+    ),
   }),
 ]);
 

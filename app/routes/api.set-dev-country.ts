@@ -1,11 +1,14 @@
 import { redirect } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/api.set-dev-country";
 import { setDevCountry } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
 
-const setDevCountrySchema = z.object({
-  country: z.string().length(2).or(z.literal("")).transform((v) => v || null),
+const setDevCountrySchema = v.object({
+  country: v.pipe(
+    v.union([v.pipe(v.string(), v.length(2)), v.literal("")]),
+    v.transform((val) => val || null)
+  ),
 });
 
 export async function action({ request }: Route.ActionArgs) {
