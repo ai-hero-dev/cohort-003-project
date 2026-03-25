@@ -69,13 +69,13 @@ Each lesson that involves code has a starting commit and solution commits. To ju
 
 ```bash
 # Reset to a lesson's starting point
-pnpm reset 03.04.01
+git reset 03.04.01
 
 # Example: reset to the start of "Build a Feature"
-pnpm reset main
+git reset main
 
 # Cherry-pick a solution if you want to skip ahead
-pnpm cherry-pick 03.04.01
+git cherry-pick 03.04.01
 ```
 
 ## Tech Stack
