@@ -31,13 +31,6 @@ function daysAgo(n: number): string {
   return d.toISOString();
 }
 
-function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
 // ─── Seed Data ───
 
 async function seed() {
