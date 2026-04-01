@@ -13,3 +13,6 @@
 .pnpm-store
 *.db-shm
 .claude/settings.local.json
+
+# jetbrains project files
+.idea/
