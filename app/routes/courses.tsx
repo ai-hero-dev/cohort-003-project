@@ -6,7 +6,7 @@ import { CourseStatus } from "~/db/schema";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { AlertTriangle, BookOpen, Search } from "lucide-react";
+import { AlertTriangle, BookOpen, Search, Star } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
 import { getCurrentUserId } from "~/lib/session";
@@ -15,6 +15,7 @@ import { getUserEnrolledCourses } from "~/services/enrollmentService";
 import { calculateProgress, getCompletedLessonCount } from "~/services/progressService";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice } from "~/lib/ppp";
+import { getCourseAverageRating } from "~/services/ratingService";
 
 export function meta() {
   return [
@@ -60,18 +61,38 @@ export async function loader({ request }: Route.LoaderArgs) {
     const pppPrice = course.pppEnabled
       ? calculatePppPrice(course.price, country)
       : course.price;
+    const rating = getCourseAverageRating(course.id);
     return {
       ...course,
       lessonCount: getLessonCountForCourse(course.id),
       progress: userProgress?.progress ?? null,
       completedLessons: userProgress?.completedLessons ?? null,
       pppPrice,
+      averageRating: rating.average,
+      ratingCount: rating.count,
     };
   });
 
   const categories = getAllCategories();
 
   return { courses: coursesWithLessonCount, categories, search, category, currentUserId };
+}
+
+function StarRating({ value, max = 5 }: { value: number; max?: number }) {
+  return (
+    <span className="flex items-center gap-0.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <Star
+          key={i}
+          className={`size-3 ${
+            i < Math.round(value)
+              ? "fill-yellow-400 text-yellow-400"
+              : "fill-muted text-muted"
+          }`}
+        />
+      ))}
+    </span>
+  );
 }
 
 function CourseCardSkeleton() {
@@ -226,27 +247,38 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
                     </div>
                   </CardContent>
                 )}
-                <CardFooter className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <UserAvatar
-                      name={course.instructorName}
-                      avatarUrl={course.instructorAvatarUrl}
-                      className="size-5"
-                    />
-                    {course.instructorName}
-                  </span>
-                  <span className="font-semibold text-foreground">
-                    {course.pppPrice < course.price ? (
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-xs line-through text-muted-foreground font-normal">
-                          {formatPrice(course.price)}
+                <CardFooter className="flex flex-col gap-2 text-xs text-muted-foreground">
+                  <div className="flex w-full items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <UserAvatar
+                        name={course.instructorName}
+                        avatarUrl={course.instructorAvatarUrl}
+                        className="size-5"
+                      />
+                      {course.instructorName}
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {course.pppPrice < course.price ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs line-through text-muted-foreground font-normal">
+                            {formatPrice(course.price)}
+                          </span>
+                          {formatPrice(course.pppPrice)}
                         </span>
-                        {formatPrice(course.pppPrice)}
+                      ) : (
+                        formatPrice(course.price)
+                      )}
+                    </span>
+                  </div>
+                  {course.averageRating !== null && (
+                    <div className="flex w-full items-center gap-1">
+                      <StarRating value={course.averageRating} />
+                      <span className="ml-1 font-medium text-foreground">
+                        {course.averageRating.toFixed(1)}
                       </span>
-                    ) : (
-                      formatPrice(course.price)
-                    )}
-                  </span>
+                      <span>({course.ratingCount})</span>
+                    </div>
+                  )}
                 </CardFooter>
               </Card>
             </Link>

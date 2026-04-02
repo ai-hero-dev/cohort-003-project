@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Form, Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug";
 import {
@@ -33,6 +33,7 @@ import {
   Clock,
   Pencil,
   PlayCircle,
+  Star,
   Users,
 } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
@@ -42,6 +43,11 @@ import { formatDuration, formatPrice } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
+import {
+  getCourseAverageRating,
+  getUserRatingForCourse,
+  upsertCourseRating,
+} from "~/services/ratingService";
 
 export function meta({ data: loaderData }: Route.MetaArgs) {
   const title = loaderData?.course?.title ?? "Course";
@@ -102,6 +108,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     : courseWithDetails.price;
   const tierInfo = getCountryTierInfo(country);
 
+  const ratingData = getCourseAverageRating(course.id);
+  const userRating =
+    currentUserId && enrolled
+      ? (getUserRatingForCourse(currentUserId, course.id)?.rating ?? null)
+      : null;
+
   return {
     course: courseWithDetails,
     salesCopyHtml,
@@ -113,10 +125,34 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     currentUserId,
     pppPrice,
     tierInfo,
+    averageRating: ratingData.average,
+    ratingCount: ratingData.count,
+    userRating,
   };
 }
 
-// No action — enrollment is handled via the purchase confirmation page
+export async function action({ params, request }: Route.ActionArgs) {
+  const slug = params.slug;
+  const course = getCourseBySlug(slug);
+  if (!course) throw data("Course not found", { status: 404 });
+
+  const currentUserId = await getCurrentUserId(request);
+  if (!currentUserId) throw data("Sign in required", { status: 401 });
+
+  if (!isUserEnrolled(currentUserId, course.id)) {
+    throw data("Must be enrolled to rate this course", { status: 403 });
+  }
+
+  const formData = await request.formData();
+  const rating = Number(formData.get("rating"));
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw data("Invalid rating", { status: 400 });
+  }
+
+  upsertCourseRating(currentUserId, course.id, rating);
+  return null;
+}
 
 export function HydrateFallback() {
   return (
@@ -181,6 +217,9 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     currentUserId,
     pppPrice,
     tierInfo,
+    averageRating,
+    ratingCount,
+    userRating,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -301,6 +340,24 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
         <p className="mb-4 text-lg text-muted-foreground">
           {course.description}
         </p>
+        {averageRating !== null && (
+          <div className="mb-4 flex items-center gap-2 text-sm">
+            <span className="flex items-center gap-0.5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star
+                  key={i}
+                  className={`size-4 ${
+                    i < Math.round(averageRating)
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "fill-muted text-muted"
+                  }`}
+                />
+              ))}
+            </span>
+            <span className="font-semibold">{averageRating.toFixed(1)}</span>
+            <span className="text-muted-foreground">({ratingCount} {ratingCount === 1 ? "rating" : "ratings"})</span>
+          </div>
+        )}
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <UserAvatar
@@ -416,6 +473,41 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                 </>
               ) : (
                 enrollButton
+              )}
+              {enrolled && (
+                <div className="border-t pt-4">
+                  <p className="mb-2 text-sm font-medium">
+                    {userRating ? "Your Rating" : "Rate This Course"}
+                  </p>
+                  <Form method="post" className="flex items-center gap-1">
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const starValue = i + 1;
+                      return (
+                        <button
+                          key={i}
+                          type="submit"
+                          name="rating"
+                          value={starValue}
+                          className="p-0.5 transition-transform hover:scale-110"
+                          aria-label={`Rate ${starValue} star${starValue !== 1 ? "s" : ""}`}
+                        >
+                          <Star
+                            className={`size-6 ${
+                              userRating !== null && starValue <= userRating
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "fill-muted text-muted hover:fill-yellow-200 hover:text-yellow-200"
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
+                    {userRating && (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        {userRating}/5
+                      </span>
+                    )}
+                  </Form>
+                </div>
               )}
               <div className="space-y-2 pt-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
