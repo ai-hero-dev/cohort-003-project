@@ -468,7 +468,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                     {userRating ? (
                       <StarRatingLocked rating={userRating.rating} />
                     ) : (
-                      <StarRatingInput courseId={course.id} />
+                      <StarRatingInput />
                     )}
                   </div>
                 </>

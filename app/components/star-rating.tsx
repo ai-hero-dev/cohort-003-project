@@ -32,11 +32,7 @@ export function StarRatingDisplay({ average, count }: StarRatingDisplayProps) {
   );
 }
 
-interface StarRatingInputProps {
-  courseId: number;
-}
-
-export function StarRatingInput({ courseId }: StarRatingInputProps) {
+export function StarRatingInput() {
   const [hoveredStar, setHoveredStar] = useState(0);
 
   return (
