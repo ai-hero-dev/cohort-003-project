@@ -12,6 +12,8 @@ import { DevUI } from "~/components/dev-ui";
 import { getAllUsers, getUserById } from "~/services/userService";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
+import { getAverageRatingsForCourses } from "~/services/ratingService";
+import { StarRatingDisplay } from "~/components/star-rating";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -26,6 +28,18 @@ export async function loader({ request }: Route.LoaderArgs) {
     ...course,
     lessonCount: getLessonCountForCourse(course.id),
   }));
+  const featuredIds = featured.map((c) => c.id);
+  const ratingsMap = getAverageRatingsForCourses(featuredIds);
+
+  const featuredWithRatings = featured.map((course) => {
+    const rating = ratingsMap.get(course.id);
+    return {
+      ...course,
+      ratingAverage: rating?.average ?? 0,
+      ratingCount: rating?.count ?? 0,
+    };
+  });
+
   const categories = getAllCategories();
   const users = getAllUsers();
   const currentUserId = await getCurrentUserId(request);
@@ -34,7 +48,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const countryTierInfo = getCountryTierInfo(devCountry);
 
   return {
-    featuredCourses: featured,
+    featuredCourses: featuredWithRatings,
     totalCourses: courses.length,
     totalCategories: categories.length,
     users: users.map((u) => ({ id: u.id, name: u.name, role: u.role })),
@@ -192,10 +206,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                       <User className="size-3" />
                       {course.instructorName ?? "Instructor"}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <BookOpen className="size-3" />
-                      {course.lessonCount} lessons
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <StarRatingDisplay average={course.ratingAverage} count={course.ratingCount} />
+                      <span className="flex items-center gap-1">
+                        <BookOpen className="size-3" />
+                        {course.lessonCount} lessons
+                      </span>
+                    </div>
                   </CardFooter>
                 </Card>
               </Link>
