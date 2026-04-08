@@ -9,6 +9,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { AlertTriangle, BookOpen, CheckCircle2, GraduationCap, PlayCircle } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { data, isRouteErrorResponse } from "react-router";
+import { getAverageRatingsForCourses } from "~/services/ratingService";
+import { StarRatingDisplay } from "~/components/star-rating";
 
 export function meta() {
   return [
@@ -56,8 +58,20 @@ export async function loader({ request }: Route.LoaderArgs) {
     };
   });
 
-  const completedCourses = coursesWithProgress.filter((c) => c.isCompleted);
-  const inProgressCourses = coursesWithProgress.filter((c) => !c.isCompleted);
+  const allCourseIds = coursesWithProgress.map((c) => c.courseId);
+  const ratingsMap = getAverageRatingsForCourses(allCourseIds);
+
+  const coursesWithRatings = coursesWithProgress.map((course) => {
+    const rating = ratingsMap.get(course.courseId);
+    return {
+      ...course,
+      ratingAverage: rating?.average ?? 0,
+      ratingCount: rating?.count ?? 0,
+    };
+  });
+
+  const completedCourses = coursesWithRatings.filter((c) => c.isCompleted);
+  const inProgressCourses = coursesWithRatings.filter((c) => !c.isCompleted);
 
   return { inProgressCourses, completedCourses };
 }
@@ -175,6 +189,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                           style={{ width: `${course.progress}%` }}
                         />
                       </div>
+                      <StarRatingDisplay average={course.ratingAverage} count={course.ratingCount} />
                     </CardContent>
                     <CardFooter>
                       {course.nextLessonId ? (
@@ -240,6 +255,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                           Completed — {course.totalLessons} lessons
                         </span>
                       </div>
+                      <StarRatingDisplay average={course.ratingAverage} count={course.ratingCount} />
                     </CardContent>
                     <CardFooter>
                       <Link
