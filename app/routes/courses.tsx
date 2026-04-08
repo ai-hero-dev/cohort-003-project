@@ -15,6 +15,8 @@ import { getUserEnrolledCourses } from "~/services/enrollmentService";
 import { calculateProgress, getCompletedLessonCount } from "~/services/progressService";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice } from "~/lib/ppp";
+import { getAverageRatingsForCourses } from "~/services/ratingService";
+import { StarRatingDisplay } from "~/components/star-rating";
 
 export function meta() {
   return [
@@ -69,9 +71,21 @@ export async function loader({ request }: Route.LoaderArgs) {
     };
   });
 
+  const courseIds = coursesWithLessonCount.map((c) => c.id);
+  const ratingsMap = getAverageRatingsForCourses(courseIds);
+
+  const coursesWithRatings = coursesWithLessonCount.map((course) => {
+    const rating = ratingsMap.get(course.id);
+    return {
+      ...course,
+      ratingAverage: rating?.average ?? 0,
+      ratingCount: rating?.count ?? 0,
+    };
+  });
+
   const categories = getAllCategories();
 
-  return { courses: coursesWithLessonCount, categories, search, category, currentUserId };
+  return { courses: coursesWithRatings, categories, search, category, currentUserId };
 }
 
 function CourseCardSkeleton() {
@@ -227,14 +241,17 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
                   </CardContent>
                 )}
                 <CardFooter className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <UserAvatar
-                      name={course.instructorName}
-                      avatarUrl={course.instructorAvatarUrl}
-                      className="size-5"
-                    />
-                    {course.instructorName}
-                  </span>
+                  <div className="flex flex-col gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <UserAvatar
+                        name={course.instructorName}
+                        avatarUrl={course.instructorAvatarUrl}
+                        className="size-5"
+                      />
+                      {course.instructorName}
+                    </span>
+                    <StarRatingDisplay average={course.ratingAverage} count={course.ratingCount} />
+                  </div>
                   <span className="font-semibold text-foreground">
                     {course.pppPrice < course.price ? (
                       <span className="flex items-center gap-1.5">
