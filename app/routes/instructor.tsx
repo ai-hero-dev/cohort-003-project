@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import type { Route } from "./+types/instructor";
 import { getCoursesByInstructor, getLessonCountForCourse } from "~/services/courseService";
 import { getEnrollmentCountForCourse } from "~/services/enrollmentService";
+import { getAverageRatingsForCourses } from "~/services/ratingService";
 import { getCurrentUserId } from "~/lib/session";
 import { getUserById } from "~/services/userService";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
@@ -9,6 +10,7 @@ import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AlertTriangle, BookOpen, GraduationCap, Plus, Users } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
+import { StarRatingDisplay } from "~/components/star-rating";
 import { data, isRouteErrorResponse } from "react-router";
 import { CourseStatus, UserRole } from "~/db/schema";
 
@@ -56,7 +58,19 @@ export async function loader({ request }: Route.LoaderArgs) {
     };
   });
 
-  return { courses: coursesWithStats };
+  const courseIds = coursesWithStats.map((c) => c.id);
+  const ratingsMap = getAverageRatingsForCourses(courseIds);
+
+  const coursesWithRatings = coursesWithStats.map((course) => {
+    const rating = ratingsMap.get(course.id);
+    return {
+      ...course,
+      ratingAverage: rating?.average ?? 0,
+      ratingCount: rating?.count ?? 0,
+    };
+  });
+
+  return { courses: coursesWithRatings };
 }
 
 function statusBadge(status: string) {
@@ -205,6 +219,7 @@ export default function InstructorDashboard({
                     </span>
                   </div>
                 </div>
+                <StarRatingDisplay average={course.ratingAverage} count={course.ratingCount} />
               </CardContent>
               <CardFooter>
                 <Link to={`/instructor/${course.id}`} className="w-full">
