@@ -122,38 +122,38 @@ export interface RevenueDataPoint {
 }
 
 function formatDateKey(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
 function formatMonthKey(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
 }
 
 function generateDailyKeys(startDate: Date, endDate: Date): string[] {
   const keys: string[] = [];
   const current = new Date(startDate);
-  current.setHours(0, 0, 0, 0);
+  current.setUTCHours(0, 0, 0, 0);
   const end = new Date(endDate);
-  end.setHours(0, 0, 0, 0);
+  end.setUTCHours(0, 0, 0, 0);
   while (current <= end) {
     keys.push(formatDateKey(current));
-    current.setDate(current.getDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
   return keys;
 }
 
 function generateMonthlyKeys(startDate: Date, endDate: Date): string[] {
   const keys: string[] = [];
-  const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-  const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+  const current = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1));
   while (current <= end) {
     keys.push(formatMonthKey(current));
-    current.setMonth(current.getMonth() + 1);
+    current.setUTCMonth(current.getUTCMonth() + 1);
   }
   return keys;
 }
