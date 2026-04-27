@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "cherry-pick": "ai-hero-cli cherry-pick --branch=live-run-through --upstream=https://github.com/ai-hero-dev/cohort-003-project.git",
-    "reset": "ai-hero-cli reset --branch=live-run-through --upstream=https://github.com/ai-hero-dev/cohort-003-project.git",
+    "reset": "git branch --show-current | grep -qx main && ai-hero-cli reset --branch=live-run-through --upstream=https://github.com/ai-hero-dev/cohort-003-project.git || (echo 'Error: pnpm reset must be run from the main branch. Run: git checkout main' && exit 0)",
     "pull": "ai-hero-cli pull --upstream=https://github.com/ai-hero-dev/cohort-003-project.git",
     "build": "react-router build",
     "dev": "react-router dev",
