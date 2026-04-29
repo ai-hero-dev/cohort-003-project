@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams, useFetcher } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug";
 import {
@@ -33,7 +33,9 @@ import {
   Clock,
   Pencil,
   PlayCircle,
+  Star,
   Users,
+  Bookmark,
 } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
@@ -42,6 +44,10 @@ import { formatDuration, formatPrice } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
+import { getAverageRating, getUserRating, rateCourse } from "~/services/ratingService";
+import { getBookmarkedLessonIds } from "~/services/bookmarkService";
+import { parseFormData } from "~/lib/validation";
+import { z } from "zod";
 
 export function meta({ data: loaderData }: Route.MetaArgs) {
   const title = loaderData?.course?.title ?? "Course";
@@ -71,6 +77,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   let progress = 0;
   let lessonProgressMap: Record<number, string> = {};
   let nextLessonId: number | null = null;
+  let bookmarkedIds: number[] = [];
 
   if (currentUserId) {
     enrolled = isUserEnrolled(currentUserId, course.id);
@@ -88,6 +95,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
       const nextLesson = getNextIncompleteLesson(currentUserId, course.id);
       nextLessonId = nextLesson?.id ?? null;
+      bookmarkedIds = getBookmarkedLessonIds(currentUserId, course.id);
     }
   }
 
@@ -102,6 +110,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     : courseWithDetails.price;
   const tierInfo = getCountryTierInfo(country);
 
+  const ratingData = getAverageRating(course.id);
+  const userRating = currentUserId ? getUserRating(currentUserId, course.id) : null;
+
   return {
     course: courseWithDetails,
     salesCopyHtml,
@@ -113,10 +124,44 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     currentUserId,
     pppPrice,
     tierInfo,
+    averageRating: ratingData.average,
+    ratingCount: ratingData.count,
+    userRating: userRating?.rating ?? null,
+    bookmarkedLessonIds: bookmarkedIds,
   };
 }
 
-// No action — enrollment is handled via the purchase confirmation page
+const ratingSchema = z.object({
+  rating: z.coerce.number().int().min(1).max(5),
+});
+
+export async function action({ params, request }: Route.ActionArgs) {
+  const currentUserId = await getCurrentUserId(request);
+  if (!currentUserId) {
+    throw data("Sign in required", { status: 401 });
+  }
+
+  const course = getCourseBySlug(params.slug);
+  if (!course) {
+    throw data("Course not found", { status: 404 });
+  }
+
+  const enrolled = isUserEnrolled(currentUserId, course.id);
+  if (!enrolled) {
+    throw data("You must be enrolled to rate this course", { status: 403 });
+  }
+
+  const formData = await request.formData();
+  const parsed = parseFormData(formData, ratingSchema);
+
+  if (!parsed.success) {
+    throw data("Invalid rating", { status: 400 });
+  }
+
+  rateCourse(currentUserId, course.id, parsed.data.rating);
+
+  return { ok: true };
+}
 
 export function HydrateFallback() {
   return (
@@ -181,6 +226,10 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     currentUserId,
     pppPrice,
     tierInfo,
+    averageRating,
+    ratingCount,
+    userRating,
+    bookmarkedLessonIds,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -320,6 +369,12 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               {formatDuration(totalDuration, true, false, false)} total
             </span>
           )}
+          {averageRating !== null && (
+            <span className="flex items-center gap-1">
+              <Star className="size-4 fill-yellow-400 text-yellow-400" />
+              {averageRating} ({ratingCount} {ratingCount === 1 ? "rating" : "ratings"})
+            </span>
+          )}
         </div>
       </div>
 
@@ -355,6 +410,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               enrolled={enrolled}
               isInstructor={isInstructor}
               lessonProgressMap={lessonProgressMap}
+              bookmarkedLessonIds={new Set(bookmarkedLessonIds)}
             />
           </div>
         </div>
@@ -413,6 +469,10 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                       Buy More Seats
                     </Button>
                   </Link>
+                  <StarRatingInput
+                    courseSlug={course.slug}
+                    userRating={userRating}
+                  />
                 </>
               ) : (
                 enrollButton
@@ -450,11 +510,63 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
   );
 }
 
+function StarRatingInput({
+  courseSlug,
+  userRating,
+}: {
+  courseSlug: string;
+  userRating: number | null;
+}) {
+  const fetcher = useFetcher();
+  const [hoveredStar, setHoveredStar] = useState<number | null>(null);
+
+  const optimisticRating =
+    fetcher.formData ? Number(fetcher.formData.get("rating")) : userRating;
+  const displayRating = hoveredStar ?? optimisticRating ?? 0;
+
+  return (
+    <div className="border-t pt-4">
+      <p className="mb-2 text-sm font-medium">
+        {optimisticRating ? "Your Rating" : "Rate this course"}
+      </p>
+      <div className="flex items-center gap-1">
+        {Array.from({ length: 5 }).map((_, i) => {
+          const starValue = i + 1;
+          return (
+            <fetcher.Form
+              key={i}
+              method="post"
+              action={`/courses/${courseSlug}`}
+            >
+              <input type="hidden" name="rating" value={starValue} />
+              <button
+                type="submit"
+                onMouseEnter={() => setHoveredStar(starValue)}
+                onMouseLeave={() => setHoveredStar(null)}
+                className="cursor-pointer p-0.5 transition-transform hover:scale-110"
+              >
+                <Star
+                  className={`size-6 ${
+                    starValue <= displayRating
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "text-muted-foreground/30"
+                  }`}
+                />
+              </button>
+            </fetcher.Form>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CourseContent({
   course,
   enrolled,
   isInstructor,
   lessonProgressMap,
+  bookmarkedLessonIds,
 }: {
   course: {
     id: number;
@@ -472,6 +584,7 @@ function CourseContent({
   enrolled: boolean;
   isInstructor: boolean;
   lessonProgressMap: Record<number, string>;
+  bookmarkedLessonIds: Set<number>;
 }) {
   return (
     <div>
@@ -485,13 +598,16 @@ function CourseContent({
           {course.modules.map((mod) => (
             <Card key={mod.id}>
               <CardHeader>
-                <h3 className="font-semibold">
+                <h3 className="flex items-center gap-2 font-semibold">
                   <Link
                     to={`/courses/${course.slug}/${mod.id}`}
                     className="hover:underline"
                   >
                     {mod.title}
                   </Link>
+                  {mod.lessons.some((l) => bookmarkedLessonIds.has(l.id)) && (
+                    <Bookmark className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
+                  )}
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {mod.lessons.length} lessons
@@ -556,6 +672,9 @@ function CourseContent({
                                   false
                                 )}
                               </span>
+                            )}
+                            {bookmarkedLessonIds.has(lesson.id) && (
+                              <Bookmark className="size-4 shrink-0 fill-amber-500 text-amber-500" />
                             )}
                           </Link>
                         ) : (
