@@ -17,6 +17,15 @@ import {
   markLessonInProgress,
 } from "~/services/progressService";
 import {
+  getCommentsForLesson,
+  createComment,
+  hideComment,
+  unhideComment,
+  deleteComment,
+  getCommentById,
+} from "~/services/commentService";
+import { getUserById } from "~/services/userService";
+import {
   getLastWatchPosition,
   calculateWatchProgress,
 } from "~/services/videoTrackingService";
@@ -26,7 +35,7 @@ import {
   getBestAttempt,
 } from "~/services/quizService";
 import { computeResult } from "~/services/quizScoringService";
-import { LessonProgressStatus } from "~/db/schema";
+import { LessonProgressStatus, UserRole } from "~/db/schema";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -55,6 +64,7 @@ import { resolveCountry } from "~/lib/country.server";
 import { checkPppAccess, COUNTRIES } from "~/lib/ppp";
 import { findPurchase } from "~/services/purchaseService";
 import { parseFormData, parseParams } from "~/lib/validation";
+import { LessonComments } from "~/components/lesson-comments";
 
 const lessonParamsSchema = z.object({
   slug: z.string().min(1),
@@ -191,6 +201,24 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppPurchaseCountry = pppResult.purchaseCountry;
   }
 
+  // Determine if current user is instructor/admin for moderation
+  let isInstructorOrAdmin = false;
+  if (currentUserId) {
+    const currentUser = getUserById(currentUserId);
+    isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+  }
+
+  // Fetch comments with rendered markdown
+  const rawComments = getCommentsForLesson(lessonId, isInstructorOrAdmin);
+  const comments = await Promise.all(
+    rawComments.map(async (c) => ({
+      ...c,
+      contentHtml: await renderMarkdown(c.content),
+    }))
+  );
+
   // Render lesson content from Markdown to HTML server-side
   const contentHtml = lesson.content
     ? await renderMarkdown(lesson.content)
@@ -281,6 +309,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments,
+    isInstructorOrAdmin,
   };
 }
 
@@ -311,7 +341,6 @@ export async function action({ params, request }: Route.ActionArgs) {
       throw data("Invalid quiz ID", { status: 400 });
     }
 
-    // Collect answers: form fields named "question-{questionId}" with value = optionId
     const selectedAnswers: Record<number, number> = {};
     for (const [key, value] of formData.entries()) {
       if (key.startsWith("question-")) {
@@ -329,6 +358,90 @@ export async function action({ params, request }: Route.ActionArgs) {
     }
 
     return { quizResult: result };
+  }
+
+  if (intent === "post-comment") {
+    const content = String(formData.get("content") ?? "").trim();
+    if (content.length === 0 || content.length > 2000) {
+      throw data("Comment must be between 1 and 2000 characters.", {
+        status: 400,
+      });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+
+    if (!isInstructorOrAdmin && !isUserEnrolled(currentUserId, course.id)) {
+      throw data("You must be enrolled to comment.", { status: 403 });
+    }
+
+    createComment(lessonId, currentUserId, content);
+    return { commentPosted: true };
+  }
+
+  if (intent === "hide-comment") {
+    const commentId = Number(formData.get("commentId"));
+    if (isNaN(commentId)) {
+      throw data("Invalid comment ID", { status: 400 });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+
+    if (!isInstructorOrAdmin) {
+      throw data("Only instructors can moderate comments.", { status: 403 });
+    }
+
+    hideComment(commentId);
+    return { commentHidden: true };
+  }
+
+  if (intent === "unhide-comment") {
+    const commentId = Number(formData.get("commentId"));
+    if (isNaN(commentId)) {
+      throw data("Invalid comment ID", { status: 400 });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+
+    if (!isInstructorOrAdmin) {
+      throw data("Only instructors can moderate comments.", { status: 403 });
+    }
+
+    unhideComment(commentId);
+    return { commentUnhidden: true };
+  }
+
+  if (intent === "delete-comment") {
+    const commentId = Number(formData.get("commentId"));
+    if (isNaN(commentId)) {
+      throw data("Invalid comment ID", { status: 400 });
+    }
+
+    const comment = getCommentById(commentId);
+    if (!comment) {
+      throw data("Comment not found", { status: 404 });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+    const isOwner = comment.userId === currentUserId;
+
+    if (!isOwner && !isInstructorOrAdmin) {
+      throw data("You cannot delete this comment.", { status: 403 });
+    }
+
+    deleteComment(commentId);
+    return { commentDeleted: true };
   }
 
   throw data("Invalid action", { status: 400 });
@@ -382,6 +495,8 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments,
+    isInstructorOrAdmin,
   } = loaderData;
   const [autoplay, toggleAutoplay] = useAutoplay();
   const fetcher = useFetcher({ key: `mark-complete-${lesson.id}` });
@@ -590,6 +705,17 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
                 </fetcher.Form>
               )}
             </div>
+          )}
+
+          {/* Comments Section */}
+          {currentUserId && (
+            <LessonComments
+              comments={comments}
+              lessonId={lesson.id}
+              currentUserId={currentUserId}
+              isInstructorOrAdmin={isInstructorOrAdmin}
+              canComment={enrolled || isInstructorOrAdmin}
+            />
           )}
 
           {/* Prev/Next Navigation */}

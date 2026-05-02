@@ -29,6 +29,13 @@
       "when": 1777483383476,
       "tag": "0003_thankful_nitro",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777720336515,
+      "tag": "0004_old_miracleman",
+      "breakpoints": true
     }
   ]
 }

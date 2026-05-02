@@ -34,6 +34,7 @@ import {
   moveLessonToModule,
 } from "~/services/lessonService";
 import { getEnrollmentCountForCourse, getCourseEnrolledStudents } from "~/services/enrollmentService";
+import { getRecentCommentsForCourse, hideComment, unhideComment, deleteComment, getCommentById } from "~/services/commentService";
 import { calculateProgress } from "~/services/progressService";
 import { getQuizByLessonId, getBestAttempt } from "~/services/quizService";
 import { getCurrentUserId } from "~/lib/session";
@@ -57,8 +58,10 @@ import {
   BookOpen,
   Clock,
   Eye,
+  EyeOff,
   FileEdit,
   GripVertical,
+  MessageSquare,
   Pencil,
   Plus,
   Save,
@@ -94,6 +97,9 @@ const courseEditorActionSchema = z.discriminatedUnion("intent", [
   z.object({ intent: z.literal("move-lesson"), lessonId: z.coerce.number().int(), targetModuleId: z.coerce.number().int(), targetPosition: z.coerce.number().int() }),
   z.object({ intent: z.literal("delete-lesson"), lessonId: z.coerce.number().int() }),
   z.object({ intent: z.literal("update-sales-copy"), salesCopy: z.string().optional() }),
+  z.object({ intent: z.literal("hide-comment"), commentId: z.coerce.number().int() }),
+  z.object({ intent: z.literal("unhide-comment"), commentId: z.coerce.number().int() }),
+  z.object({ intent: z.literal("delete-comment"), commentId: z.coerce.number().int() }),
 ]);
 
 export function meta({ data: loaderData }: Route.MetaArgs) {
@@ -185,7 +191,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   const quizCount = lessonQuizzes.length;
 
-  return { course, lessonCount, enrollmentCount, students, quizCount };
+  const recentComments = getRecentCommentsForCourse(courseId);
+
+  return { course, lessonCount, enrollmentCount, students, quizCount, recentComments };
 }
 
 export async function action({ params, request }: Route.ActionArgs) {
@@ -355,6 +363,25 @@ export async function action({ params, request }: Route.ActionArgs) {
   if (intent === "update-sales-copy") {
     updateCourseSalesCopy(courseId, parsed.data.salesCopy || null);
     return { success: true, field: "sales-copy" };
+  }
+
+  if (intent === "hide-comment") {
+    hideComment(parsed.data.commentId);
+    return { success: true, field: "comment" };
+  }
+
+  if (intent === "unhide-comment") {
+    unhideComment(parsed.data.commentId);
+    return { success: true, field: "comment" };
+  }
+
+  if (intent === "delete-comment") {
+    const comment = getCommentById(parsed.data.commentId);
+    if (!comment) {
+      return data({ error: "Comment not found." }, { status: 404 });
+    }
+    deleteComment(parsed.data.commentId);
+    return { success: true, field: "comment" };
   }
 
   throw data("Invalid action.", { status: 400 });
@@ -984,7 +1011,7 @@ function statusBadgeColor(status: string) {
 export default function InstructorCourseEditor({
   loaderData,
 }: Route.ComponentProps) {
-  const { course, lessonCount, enrollmentCount, students, quizCount } = loaderData;
+  const { course, lessonCount, enrollmentCount, students, quizCount, recentComments } = loaderData;
   const statusFetcher = useFetcher();
   const reorderFetcher = useFetcher();
   const lessonReorderFetcher = useFetcher();
@@ -1192,6 +1219,10 @@ export default function InstructorCourseEditor({
           <TabsTrigger value="students">
             <Users className="size-4" />
             Students
+          </TabsTrigger>
+          <TabsTrigger value="comments">
+            <MessageSquare className="size-4" />
+            Comments
           </TabsTrigger>
         </TabsList>
 
@@ -1652,8 +1683,126 @@ export default function InstructorCourseEditor({
             </Card>
           )}
         </TabsContent>
+
+        {/* Comments Tab */}
+        <TabsContent value="comments" className="mt-6">
+          <CommentsModeration comments={recentComments} courseSlug={course.slug} />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function CommentsModeration({
+  comments,
+  courseSlug,
+}: {
+  comments: Array<{
+    id: number;
+    lessonId: number;
+    lessonTitle: string;
+    userId: number;
+    content: string;
+    status: string;
+    createdAt: string;
+    authorName: string;
+    authorAvatarUrl: string | null;
+  }>;
+  courseSlug: string;
+}) {
+  const fetcher = useFetcher();
+
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.success && fetcher.data.field === "comment") {
+      toast.success("Comment updated.");
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  if (comments.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/50" />
+          <p className="text-muted-foreground">No comments yet.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <p className="mb-4 text-sm text-muted-foreground">
+          Showing the {comments.length} most recent comments across all lessons.
+        </p>
+        <div className="space-y-4">
+          {comments.map((comment) => {
+            const isHidden = comment.status === "hidden";
+            return (
+              <div
+                key={comment.id}
+                className={`rounded-lg border p-4 ${isHidden ? "border-dashed border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/30" : ""}`}
+              >
+                <div className="mb-1 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{comment.authorName}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(comment.createdAt).toLocaleDateString()}
+                    </span>
+                    {isHidden && (
+                      <span className="rounded bg-amber-200 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">
+                        Hidden
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {isHidden ? (
+                      <fetcher.Form method="post">
+                        <input type="hidden" name="intent" value="unhide-comment" />
+                        <input type="hidden" name="commentId" value={comment.id} />
+                        <Button type="submit" variant="ghost" size="sm" title="Restore">
+                          <Eye className="size-4" />
+                        </Button>
+                      </fetcher.Form>
+                    ) : (
+                      <fetcher.Form method="post">
+                        <input type="hidden" name="intent" value="hide-comment" />
+                        <input type="hidden" name="commentId" value={comment.id} />
+                        <Button type="submit" variant="ghost" size="sm" title="Hide">
+                          <EyeOff className="size-4" />
+                        </Button>
+                      </fetcher.Form>
+                    )}
+                    <fetcher.Form method="post">
+                      <input type="hidden" name="intent" value="delete-comment" />
+                      <input type="hidden" name="commentId" value={comment.id} />
+                      <Button
+                        type="submit"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        title="Delete permanently"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </fetcher.Form>
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <Link
+                    to={`/courses/${courseSlug}/lessons/${comment.lessonId}`}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {comment.lessonTitle}
+                  </Link>
+                </div>
+                <p className="whitespace-pre-wrap text-sm">{comment.content}</p>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

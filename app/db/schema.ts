@@ -29,6 +29,11 @@ export enum QuestionType {
   TrueFalse = "true_false",
 }
 
+export enum CommentStatus {
+  Visible = "visible",
+  Hidden = "hidden",
+}
+
 export enum TeamMemberRole {
   Admin = "admin",
   Member = "member",
@@ -267,6 +272,24 @@ export const coupons = sqliteTable("coupons", {
   redeemedByUserId: integer("redeemed_by_user_id").references(() => users.id),
   redeemedAt: text("redeemed_at"),
   createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
+export const lessonComments = sqliteTable("lesson_comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  lessonId: integer("lesson_id")
+    .notNull()
+    .references(() => lessons.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  content: text("content").notNull(),
+  status: text("status").notNull().$type<CommentStatus>(),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });
