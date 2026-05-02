@@ -8,8 +8,10 @@ import { getAllCategories } from "~/services/categoryService";
 import { CourseStatus } from "~/db/schema";
 import { BookOpen, GraduationCap, Users, ArrowRight, User, Moon, Sun } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
+import { StarRatingDisplay } from "~/components/star-rating";
 import { DevUI } from "~/components/dev-ui";
 import { getAllUsers, getUserById } from "~/services/userService";
+import { getRatingStatsForCourses } from "~/services/ratingService";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 
@@ -22,10 +24,19 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const courses = buildCourseQuery(null, null, CourseStatus.Published, "newest", 50, 0);
-  const featured = courses.slice(0, 3).map((course) => ({
-    ...course,
-    lessonCount: getLessonCountForCourse(course.id),
-  }));
+  const featuredCoursesRaw = courses.slice(0, 3);
+  const ratingStats = getRatingStatsForCourses(
+    featuredCoursesRaw.map((c) => c.id)
+  );
+  const featured = featuredCoursesRaw.map((course) => {
+    const stats = ratingStats.get(course.id) ?? { average: null, count: 0 };
+    return {
+      ...course,
+      lessonCount: getLessonCountForCourse(course.id),
+      ratingAverage: stats.average,
+      ratingCount: stats.count,
+    };
+  });
   const categories = getAllCategories();
   const users = getAllUsers();
   const currentUserId = await getCurrentUserId(request);
@@ -186,6 +197,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                     <p className="line-clamp-2 text-sm text-muted-foreground">
                       {course.description}
                     </p>
+                    <div className="mt-2">
+                      <StarRatingDisplay
+                        average={course.ratingAverage}
+                        count={course.ratingCount}
+                        size="sm"
+                      />
+                    </div>
                   </CardContent>
                   <CardFooter className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
