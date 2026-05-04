@@ -7,7 +7,7 @@ import { getUserById } from "~/services/userService";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { AlertTriangle, BookOpen, GraduationCap, Plus, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, BookOpen, GraduationCap, Plus, Users } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { data, isRouteErrorResponse } from "react-router";
 import { CourseStatus, UserRole } from "~/db/schema";
@@ -141,12 +141,20 @@ export default function InstructorDashboard({
             Manage your courses and track enrollments
           </p>
         </div>
-        <Link to="/instructor/new">
-          <Button>
-            <Plus className="mr-2 size-4" />
-            New Course
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/instructor/analytics">
+            <Button variant="outline">
+              <BarChart3 className="mr-2 size-4" />
+              Analytics
+            </Button>
+          </Link>
+          <Link to="/instructor/new">
+            <Button>
+              <Plus className="mr-2 size-4" />
+              New Course
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {courses.length === 0 ? (
