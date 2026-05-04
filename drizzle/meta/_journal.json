@@ -43,6 +43,13 @@
       "when": 1775351056400,
       "tag": "0005_spooky_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1777906995503,
+      "tag": "0006_mushy_sentry",
+      "breakpoints": true
     }
   ]
 }

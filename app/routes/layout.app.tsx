@@ -13,6 +13,11 @@ import {
 } from "~/services/progressService";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { isTeamAdmin } from "~/services/teamService";
+import {
+  getNotifications,
+  getUnreadCount,
+} from "~/services/notificationService";
+import { UserRole } from "~/db/schema";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const users = getAllUsers();
@@ -46,6 +51,23 @@ export async function loader({ request }: Route.LoaderArgs) {
       })
     : [];
 
+  const isInstructor =
+    currentUser?.role === UserRole.Instructor && currentUserId !== null;
+  const unreadNotificationCount = isInstructor
+    ? getUnreadCount(currentUserId)
+    : 0;
+  const recentNotifications = isInstructor
+    ? getNotifications(currentUserId, 5, 0).map((n) => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        message: n.message,
+        linkUrl: n.linkUrl,
+        isRead: n.isRead,
+        createdAt: n.createdAt,
+      }))
+    : [];
+
   return {
     users: users.map((u) => ({ id: u.id, name: u.name, role: u.role })),
     currentUser: currentUser
@@ -61,6 +83,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     countryTierInfo,
     countries: COUNTRIES,
     isTeamAdmin: currentUserId ? isTeamAdmin(currentUserId) : false,
+    unreadNotificationCount,
+    recentNotifications,
   };
 }
 
@@ -73,6 +97,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     countryTierInfo,
     countries,
     isTeamAdmin: userIsTeamAdmin,
+    unreadNotificationCount,
+    recentNotifications,
   } = loaderData;
 
   return (
@@ -81,6 +107,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         currentUser={currentUser}
         recentCourses={recentCourses}
         isTeamAdmin={userIsTeamAdmin}
+        unreadNotificationCount={unreadNotificationCount}
+        recentNotifications={recentNotifications}
       />
       <main className="flex-1 overflow-y-auto">
         <Outlet />

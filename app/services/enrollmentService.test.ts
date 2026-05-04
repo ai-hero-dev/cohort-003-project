@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 
@@ -77,6 +78,27 @@ describe("enrollmentService", () => {
     it("accepts sendEmail parameter without error", () => {
       const enrollment = enrollUser(base.user.id, base.course.id, true, false);
       expect(enrollment).toBeDefined();
+    });
+
+    it("creates a notification for the course's instructor", () => {
+      enrollUser(base.user.id, base.course.id, false, false);
+
+      const inbox = testDb
+        .select()
+        .from(schema.notifications)
+        .where(eq(schema.notifications.recipientUserId, base.instructor.id))
+        .all();
+
+      expect(inbox).toHaveLength(1);
+      expect(inbox[0].type).toBe(schema.NotificationType.Enrollment);
+      expect(inbox[0].title).toBe("New Enrollment");
+      expect(inbox[0].message).toBe(
+        `${base.user.name} enrolled in ${base.course.title}`
+      );
+      expect(inbox[0].linkUrl).toBe(
+        `/instructor/${base.course.id}/students`
+      );
+      expect(inbox[0].isRead).toBe(false);
     });
   });
 
