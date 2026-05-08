@@ -36,6 +36,13 @@
       "when": 1777720336515,
       "tag": "0004_old_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1777909306150,
+      "tag": "0005_serious_the_liberteens",
+      "breakpoints": true
     }
   ]
 }
