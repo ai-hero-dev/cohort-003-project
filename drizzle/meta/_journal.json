@@ -22,6 +22,27 @@
       "when": 1770650640202,
       "tag": "0002_lying_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1777483383476,
+      "tag": "0003_thankful_nitro",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777720336515,
+      "tag": "0004_old_miracleman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1777909306150,
+      "tag": "0005_serious_the_liberteens",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,966 @@
+╭─── Claude Code v2.1.123 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│                Welcome back Andrey!                │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ Fixed OAuth authentica… │
+│   Opus 4.7 · Claude Pro · gladyshav@gmail.com's    │ Added `ANTHROPIC_BEDRO… │
+│   Organization                                     │ Pasting a PR URL into … │
+│               ~/…/cohort-003-project               │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+❯ /clear                                                                        
+  ⎿  (no content)
+
+❯ I would like to create a course review system where students can review       
+  courses by leaving a star rating. We don't want to add written reviews, just  
+  star rating. These reviews will then be visible everywhere that courses are   
+  visible. We want to show the average rating on the courses in the list page   
+  and on the courese page itself.                                               
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+⏺ Explore(Explore course system & DB schema)
+  ⎿  Done (33 tool uses · 52.3k tokens · 1m 40s)
+  (ctrl+o to expand)
+
+  Searched for 2 patterns, read 12 files, listed 3 directories (ctrl+o to expand)
+
+⏺ I have a clear picture of the codebase. Let me draft the plan and then ask you
+   a couple of focused questions before finalizing.
+
+⏺ Updated plan
+  ⎿  /plan to preview
+
+⏺ Now let me ask the key questions that will shape the final plan.
+  ⎿  Tool use rejected
+
+⏺ Got it — only enrolled students will be allowed to rate. What would you like
+  to clarify about the other two questions (widget location and card display
+  style)? Anything I should rephrase, options I've missed, or a different
+  question you'd like me to ask first?
+
+✻ Baked for 3m 49s
+
+❯ What is currently show on the dashboard? Give me a list of all of the things  
+  that are shown there, so I can work out whether adding the star ratings would 
+   clutter the UI.                                                              
+
+⏺ Here's everything currently rendered on /dashboard (from
+  app/routes/dashboard.tsx):
+
+  Page chrome
+  - Breadcrumb: Home / Dashboard
+  - H1: "My Dashboard"
+  - Subtitle: "Track your learning progress"
+
+  Empty state (only if user has zero enrollments)
+  - Graduation cap icon, "No enrolled courses" heading, prompt text, "Browse
+  Courses" button
+
+  "In Progress" section — one card per non-completed enrollment:
+  - Cover image (clickable)
+  - Course title (clickable)
+  - Course description (line-clamped to 2 lines)
+  - Progress row: {completed} / {total} lessons on the left, {percent}% on the
+  right
+  - Progress bar (filled to %)
+  - Footer: either "Continue Learning" button (if there's a next lesson) or
+  "View Course" button
+
+  "Completed" section — one card per completed enrollment:
+  - Cover image with a dark overlay + large checkmark
+  - Course title (clickable)
+  - Course description (line-clamped to 2 lines)
+  - "Completed — {N} lessons" line with a green checkmark
+  - Footer: "Review Course" button
+
+  Error state (if not signed in)
+  - AlertTriangle, "Sign in required" message, "Browse Courses" / "Go Home"
+  buttons
+
+  So each card already has: image, title, description, a progress/completion
+  line, and one action button. Adding a star line (e.g. ★★★★☆ 4.3 (12)) is one
+  extra ~16px row — readable but does add a fifth piece of information per card.
+
+  Three honest options for the dashboard specifically:
+  1. Skip the dashboard entirely. Dashboard is "your courses, your progress" —
+  average ratings are public/social info that arguably belongs on discovery
+  surfaces (catalog, home, course detail), not here. Cleanest UI.
+  2. Show stars only on Completed cards. Reinforces "you finished this — did you
+   rate it?" without cluttering In Progress.
+  3. Show on every card (original plan). More consistency, slightly busier.
+
+  My recommendation: option 1 or 2. Want me to update the plan to one of those,
+  or keep stars on every dashboard card?
+
+✻ Cogitated for 24s
+
+❯ /usage 
+  ⎿  Status dialog dismissed
+
+❯ Let's not bother with the dashboard page; let's only put it on places where   
+  we're intending to sell the course.                                           
+
+⏺ Got it. I'll remove the dashboard from the plan and leave stars on the three
+  selling surfaces only: catalog list, course detail page, and home featured.
+  Let me update the plan, then ask the one remaining question.
+
+⏺ Updated plan
+  ⎿  /plan to preview
+
+⏺ Updated plan
+  ⎿  /plan to preview
+⏺ Updated plan
+  ⎿  /plan to preview
+
+⏺ Updated plan
+  ⎿  /plan to preview
+
+⏺ User answered Claude's questions:
+  ⎿  · How should the rating display look in compact card spots (catalog list 
+     cards and home featured cards)? → Stars only, no number, no count
+     · How should an unrated course appear in card/hero spots (no ratings yet)? 
+     → Show greyed-out empty stars + 'No ratings yet' (Recommended)
+
+⏺ Updated plan
+  ⎿  /plan to preview
+
+⏺ Updated plan
+  ⎿  /plan to preview
+  ⎿  User rejected Claude's plan:
+     ╭─────────────────────────────────────────────────────────────────────────╮
+     │ Course Star-Rating System                                               │
+     │                                                                         │
+     │ Context                                                                 │
+     │                                                                         │
+     │ Add a simple star-rating system so students can rate courses (1–5       │
+     │ stars, no written reviews). Each user can leave at most one rating per  │
+     │ course (and can change it later). The course's average rating and total │
+     │  number of ratings should appear on the selling surfaces only: the      │
+     │ catalog list (/courses), the course detail page (/courses/:slug), and   │
+     │ the home page's "Featured Courses" section. The dashboard is            │
+     │ intentionally excluded — it's a personal-progress view, not a discovery │
+     │  surface, and an extra rating line per card would clutter it.           │
+     │                                                                         │
+     │ Only enrolled students can rate a course; the rate widget lives in the  │
+     │ right sidebar of the course detail page (next to "Your Progress").      │
+     │ Anyone — enrolled, not enrolled, or signed-out — can see the average.   │
+     │                                                                         │
+     │ The project is React Router 7 + Drizzle ORM + better-sqlite3. We will   │
+     │ follow the existing service/route conventions exactly: thin services    │
+     │ that import db directly, route loaders that call services, route        │
+     │ actions that validate FormData via the existing parseFormData zod       │
+     │ helper, and tests that mock ~/db against an in-memory SQLite created by │
+     │  createTestDb().                                                        │
+     │                                                                         │
+     │ ---                                                                     │
+     │ 1. Schema change — app/db/schema.ts                                     │
+     │                                                                         │
+     │ Add a ratings table after enrollments (line 117):                       │
+     │                                                                         │
+     │ export const ratings = sqliteTable(                                     │
+     │   "ratings",                                                            │
+     │   {                                                                     │
+     │     id: integer("id").primaryKey({ autoIncrement: true }),              │
+     │     userId: integer("user_id").notNull().references(() => users.id),    │
+     │     courseId: integer("course_id").notNull().references(() =>           │
+     │ courses.id),                                                            │
+     │     rating: integer("rating").notNull(), // 1–5, validated at the       │
+     │ service/zod layer                                                       │
+     │     createdAt: text("created_at").notNull().$defaultFn(() => new        │
+     │ Date().toISOString()),                                                  │
+     │     updatedAt: text("updated_at").notNull().$defaultFn(() => new        │
+     │ Date().toISOString()),                                                  │
+     │   },                                                                    │
+     │   (table) => ({                                                         │
+     │     userCourseUnique:                                                   │
+     │ uniqueIndex("ratings_user_course_unique").on(table.userId,              │
+     │ table.courseId),                                                        │
+     │   })                                                                    │
+     │ );                                                                      │
+     │                                                                         │
+     │ (uniqueIndex is imported from drizzle-orm/sqlite-core.)                 │
+     │                                                                         │
+     │ Then run:                                                               │
+     │                                                                         │
+     │ pnpm db:generate   # creates drizzle/0003_*.sql                         │
+     │ pnpm db:migrate    # applies it to ./data.db                            │
+     │                                                                         │
+     │ The in-memory test DB picks up the new migration automatically          │
+     │ (createTestDb runs migrate() against the drizzle/ folder — see          │
+     │ app/test/setup.ts:26).                                                  │
+     │                                                                         │
+     │ 2. New service — app/services/ratingService.ts                          │
+     │                                                                         │
+     │ Mirrors the style of enrollmentService.ts (positional params, imports   │
+     │ db directly, no DI):                                                    │
+     │                                                                         │
+     │ export function getUserRating(userId: number, courseId: number)         │
+     │ export function upsertRating(userId: number, courseId: number, rating:  │
+     │ number)  // 1..5; throws on out-of-range                                │
+     │ export function getCourseRatingStats(courseId: number): { average:      │
+     │ number | null; count: number }                                          │
+     │ export function getRatingStatsForCourses(courseIds: number[]):          │
+     │ Map<number, { average: number; count: number }>                         │
+     │                                                                         │
+     │ Notes:                                                                  │
+     │ - upsertRating does findEnrollment-style lookup, then INSERT or UPDATE. │
+     │  Set updatedAt to new Date().toISOString() on update.                   │
+     │ - getRatingStatsForCourses uses one grouped query (select courseId,     │
+     │ avg(rating), count(*) from ratings where courseId in (...) group by     │
+     │ courseId) so the catalog/dashboard/home pages don't N+1. Returns a Map  │
+     │ for O(1) lookup in the route.                                           │
+     │ - average is rounded to one decimal (e.g. 4.3). The route formats it;   │
+     │ the service returns the raw number.                                     │
+     │                                                                         │
+     │ 3. New component — app/components/star-rating.tsx                       │
+     │                                                                         │
+     │ Two small components in one file (use lucide-react's Star icon, already │
+     │  in deps):                                                              │
+     │                                                                         │
+     │ - <StarRatingDisplay average={4.3} count={12} size="sm" | "md"          │
+     │ showCount={false} /> — read-only display.                               │
+     │   - Default rendering: five stars only (★★★★☆), no number, no count.    │
+     │ Used on catalog cards, home featured cards, and the course detail hero  │
+     │ meta row.                                                               │
+     │   - showCount prop (default false) is reserved for future use — leave   │
+     │ the prop in place but every current caller renders stars-only.          │
+     │   - Empty state (count === 0): five greyed-out outline stars (☆☆☆☆☆)    │
+     │ followed by the text "No ratings yet" so the row is visually balanced   │
+     │ and unambiguous.                                                        │
+     │   - Half-star handling: round to nearest half (e.g. 4.3 → 4, 4.6 →      │
+     │ 4.5). Render half via two overlaid <Star> icons (one outline, one       │
+     │ filled with clip-path: inset(0 50% 0 0)), or simpler: round to nearest  │
+     │ whole star — pick whichever looks cleaner during implementation.        │
+     │ - <StarRatingInput name="rating" defaultValue={3} disabled={…} /> —     │
+     │ interactive 5-button radio-style picker for use inside a <Form>. Each   │
+     │ button is a <button type="submit" name="rating" value={n}> so a single  │
+     │ click submits.                                                          │
+     │                                                                         │
+     │ Keep the file <100 lines. No new dependencies.                          │
+     │                                                                         │
+     │ 4. Wire average rating into list/detail/home/dashboard                  │
+     │                                                                         │
+     │ - app/routes/courses.tsx loader (line 31–70) — after buildCourseQuery,  │
+     │ call getRatingStatsForCourses(courses.map(c => c.id)) once and merge    │
+     │ the stats into coursesWithLessonCount (alongside lessonCount, progress, │
+     │  etc.). Add <StarRatingDisplay> in the card header (line ~204, between  │
+     │ category and title) or in the footer next to instructor — placement to  │
+     │ be confirmed in review.                                                 │
+     │ - app/routes/courses.$slug.tsx loader — call                            │
+     │ getCourseRatingStats(course.id) and (if user is enrolled)               │
+     │ getUserRating(currentUserId, course.id). Return both. In the JSX:       │
+     │   - Add <StarRatingDisplay> to the hero (after line 303, in the meta    │
+     │ row with instructor / lesson count).                                    │
+     │   - Add a "Rate this course" block to the right sidebar (inside the     │
+     │ enrolled branch around line 408) that posts to this route's new action. │
+     │  Pre-fill with userRating if it exists.                                 │
+     │ - app/routes/courses.$slug.tsx action — currently the file has no       │
+     │ action. Add one that:                                                   │
+     │   a. Reads currentUserId (401 if missing),                              │
+     │   b. Validates intent === "rate" and rating ∈ [1..5] via zod +          │
+     │ parseFormData,                                                          │
+     │   c. Verifies enrollment via isUserEnrolled (403 if not),               │
+     │   d. Calls upsertRating, returns { ok: true } for the fetcher to        │
+     │ consume.                                                                │
+     │ - app/routes/home.tsx loader (line 23–48) — same                        │
+     │ getRatingStatsForCourses batch call for the featured 3, then render     │
+     │ <StarRatingDisplay> in each card footer (line ~190).                    │
+     │ - app/routes/dashboard.tsx — no changes. The dashboard is a             │
+     │ personal-progress surface, not a discovery surface, and stays free of   │
+     │ rating clutter.                                                         │
+     │                                                                         │
+     │ 5. Tests — app/services/ratingService.test.ts                           │
+     │                                                                         │
+     │ Follow enrollmentService.test.ts exactly: vi.mock("~/db"),              │
+     │ createTestDb() + seedBaseData() in beforeEach. Cover:                   │
+     │ - upsertRating inserts on first call, updates on second call (same      │
+     │ user/course), preserves createdAt.                                      │
+     │ - upsertRating throws on rating outside 1–5.                            │
+     │ - Unique constraint enforces one row per (userId, courseId) — second    │
+     │ insert via raw drizzle should fail.                                     │
+     │ - getCourseRatingStats returns {average: null, count: 0} for an unrated │
+     │  course; correct average/count after several ratings.                   │
+     │ - getRatingStatsForCourses batches correctly across multiple courses,   │
+     │ omits unrated courses from the map (or returns 0/null — pick one and    │
+     │ document).                                                              │
+     │                                                                         │
+     │ 6. Critical files                                                       │
+     │                                                                         │
+     │ ┌────────────────────────────────────┬───────────────────────────────── │
+     │ ────┐                                                                   │
+     │ │                File                │               Change             │
+     │     │                                                                   │
+     │ ├────────────────────────────────────┼───────────────────────────────── │
+     │ ────┤                                                                   │
+     │ │ app/db/schema.ts                   │ Add ratings table + uniqueIndex  │
+     │     │                                                                   │
+     │ │                                    │ import                           │
+     │     │                                                                   │
+     │ ├────────────────────────────────────┼───────────────────────────────── │
+     │ ────┤                                                                   │
+     │ │ drizzle/0003_*.sql                 │ Auto-generated migration (commit │
+     │     │                                                                   │
+     │ │                                    │ it)                              │
+     │     │                                                                   │
+     │ ├────────────────────────────────────┼───────────────────────────────── │
+     │ ────┤                                                                   │
+     │ │ app/services/ratingService.ts      │ New — service                    │
+     │     │                                                                   │
+     │ ├────────────────────────────────────┼───────────────────────────────── │
+     │ ────┤                                                                   │
+     │ │ app/services/ratingService.test.ts │ New — tests                      │
+     │     │                                                                   │
+     │ ├────────────────────────────────────┼───────────────────────────────── │
+     │ ────┤                                                                   │
+     │ │ app/components/star-rating.tsx     │ New — display + input components │
+     │     │                                                                   │
+     │ ├────────────────────────────────────┼───────────────────────────────── │
+     │ ────┤                                                                   │
+     │ │ app/routes/courses.tsx             │ Loader: batch stats; UI: card    │
+     │     │                                                                   │
+     │ │                                    │ display                          │
+     │     │                                                                   │
+     │ ├────────────────────────────────────┼───────────────────────────────── │
+     │ ────┤                                                                   │
+     │ │                                    │ Loader: stats + own rating; new  │
+     │     │                                                                   │
+     │ │ app/routes/courses.$slug.tsx       │ action; UI: hero display +       │
+     │ sidebar  │                                                              │
+     │ │                                    │ input                            │
+     │     │                                                                   │
+     │ ├────────────────────────────────────┼───────────────────────────────── │
+     │ ────┤                                                                   │
+     │ │ app/routes/home.tsx                │ Loader: batch stats; UI:         │
+     │     │                                                                   │
+     │ │                                    │ featured-card display            │
+     │     │                                                                   │
+     │ └────────────────────────────────────┴───────────────────────────────── │
+     │ ────┘                                                                   │
+     │                                                                         │
+     │ No changes needed to session.ts, validation.ts, enrollmentService.ts,   │
+     │ or courseService.ts.                                                    │
+     │                                                                         │
+     │ 7. Reused functions (don't reinvent)                                    │
+     │                                                                         │
+     │ - getCurrentUserId(request) — app/lib/session.ts:17                     │
+     │ - parseFormData(formData, schema) — app/lib/validation.ts:15            │
+     │ - isUserEnrolled(userId, courseId) —                                    │
+     │ app/services/enrollmentService.ts:56                                    │
+     │ - createTestDb(), seedBaseData() — app/test/setup.ts:19, :35            │
+     │ - Card, CardHeader, CardContent, CardFooter — existing UI primitives    │
+     │ - Star icon — from lucide-react (already in deps)                       │
+     │                                                                         │
+     │ 8. Verification                                                         │
+     │                                                                         │
+     │ End-to-end check:                                                       │
+     │                                                                         │
+     │ pnpm db:generate && pnpm db:migrate                                     │
+     │ pnpm typecheck                                                          │
+     │ pnpm test                   # ratingService.test.ts must pass           │
+     │ pnpm dev                                                                │
+     │                                                                         │
+     │ In the running app:                                                     │
+     │ 1. Switch to an enrolled student via DevUI panel.                       │
+     │ 2. Visit /courses/:slug for an enrolled course → "Rate this course"     │
+     │ widget appears in right sidebar.                                        │
+     │ 3. Click 4 stars → page re-renders, your rating shows selected in the   │
+     │ sidebar, hero meta row shows ★★★★☆.                                     │
+     │ 4. Visit /courses → that course's card shows ★★★★☆ (stars only, no      │
+     │ number).                                                                │
+     │ 5. Visit / → if course is in "Featured", same ★★★★☆ display.            │
+     │ 6. Switch to a different enrolled user → rate the same course 2 stars → │
+     │  average rounds to 3 stars and updates to ★★★☆☆ on /courses,            │
+     │ /courses/:slug, and home featured.                                      │
+     │ 7. Switch to a non-enrolled user → no widget shown, but ★★★☆☆ is still  │
+     │ visible.                                                                │
+     │ 8. Visit /courses/:slug for an unrated course → row shows ☆☆☆☆☆ No      │
+     │ ratings yet.                                                            │
+     │ 9. Visit /dashboard → confirm no stars are rendered there               │
+     │ (intentional).                                                          │
+     ╰─────────────────────────────────────────────────────────────────────────╯
+
+❯ /context                                                                      
+  ⎿  Context Usage
+     ⛁ ⛁ ⛁ ⛁ ⛁ ⛀ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   Opus 4.7
+     ⛁ ⛁ ⛀ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   claude-opus-4-7
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   102.6k/1m tokens (10%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ 
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   Estimated usage by category
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System prompt: 8.7k tokens 
+     (0.9%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System tools: 14.3k tokens 
+     (1.4%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Skills: 810 tokens (0.1%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Messages: 83.1k tokens (8.3%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝   ⛶ Free space: 860.1k (86.0%)
+                                               ⛝ Autocompact buffer: 33k tokens 
+     (3.3%)
+
+     MCP tools · /mcp (loaded on-demand)
+
+     Available
+     ├ mcp__ide__executeCode
+     └ mcp__ide__getDiagnostics
+
+     Skills · /skills
+
+     Project
+     ├ better-sqlite3-rebuild: 49 tokens
+     └ pnpm-not-found: 40 tokens
+
+❯ continue                                                                      
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Let me clean up the two stale "dashboard" references in the plan body, then
+  exit plan mode.
+
+⏺ Updated plan
+  ⎿  /plan to preview
+
+⏺ Updated plan
+  ⎿  /plan to preview
+
+⏺ User approved Claude's plan
+  ⎿  Plan saved to: ~/.claude/plans/i-would-like-to-purrfect-pudding.md · /plan 
+     to edit
+     Course Star-Rating System
+
+     Context
+
+     Add a simple star-rating system so students can rate courses (1–5 stars, no
+      written reviews). Each user can leave at most one rating per course (and
+     can change it later). The course's average rating and total number of
+     ratings should appear on the selling surfaces only: the catalog list
+     (/courses), the course detail page (/courses/:slug), and the home page's
+     "Featured Courses" section. The dashboard is intentionally excluded — it's
+     a personal-progress view, not a discovery surface, and an extra rating line
+      per card would clutter it.
+
+     Only enrolled students can rate a course; the rate widget lives in the
+     right sidebar of the course detail page (next to "Your Progress"). Anyone —
+      enrolled, not enrolled, or signed-out — can see the average.
+
+     The project is React Router 7 + Drizzle ORM + better-sqlite3. We will
+     follow the existing service/route conventions exactly: thin services that
+     import db directly, route loaders that call services, route actions that
+     validate FormData via the existing parseFormData zod helper, and tests that
+      mock ~/db against an in-memory SQLite created by createTestDb().
+
+     ---
+     1. Schema change — app/db/schema.ts
+
+     Add a ratings table after enrollments (line 117):
+
+     export const ratings = sqliteTable(
+       "ratings",
+       {
+         id: integer("id").primaryKey({ autoIncrement: true }),
+         userId: integer("user_id").notNull().references(() => users.id),
+         courseId: integer("course_id").notNull().references(() => courses.id),
+         rating: integer("rating").notNull(), // 1–5, validated at the 
+     service/zod layer
+         createdAt: text("created_at").notNull().$defaultFn(() => new
+     Date().toISOString()),
+         updatedAt: text("updated_at").notNull().$defaultFn(() => new
+     Date().toISOString()),
+       },
+       (table) => ({
+         userCourseUnique:
+     uniqueIndex("ratings_user_course_unique").on(table.userId, table.courseId),
+       })
+     );
+
+     (uniqueIndex is imported from drizzle-orm/sqlite-core.)
+
+     Then run:
+
+     pnpm db:generate   # creates drizzle/0003_*.sql
+     pnpm db:migrate    # applies it to ./data.db
+
+     The in-memory test DB picks up the new migration automatically
+     (createTestDb runs migrate() against the drizzle/ folder — see
+     app/test/setup.ts:26).
+
+     2. New service — app/services/ratingService.ts
+
+     Mirrors the style of enrollmentService.ts (positional params, imports db
+     directly, no DI):
+
+     export function getUserRating(userId: number, courseId: number)
+     export function upsertRating(userId: number, courseId: number, rating: 
+     number)  // 1..5; throws on out-of-range
+     export function getCourseRatingStats(courseId: number): { average: number |
+      null; count: number }
+     export function getRatingStatsForCourses(courseIds: number[]): Map<number,
+     { average: number; count: number }>
+
+     Notes:
+     - upsertRating does findEnrollment-style lookup, then INSERT or UPDATE. Set
+      updatedAt to new Date().toISOString() on update.
+     - getRatingStatsForCourses uses one grouped query (select courseId, 
+     avg(rating), count(*) from ratings where courseId in (...) group by 
+     courseId) so the catalog and home pages don't N+1. Returns a Map for O(1)
+     lookup in the route.
+     - average is rounded to one decimal (e.g. 4.3). The route formats it; the
+     service returns the raw number.
+
+     3. New component — app/components/star-rating.tsx
+
+     Two small components in one file (use lucide-react's Star icon, already in
+     deps):
+
+     - <StarRatingDisplay average={4.3} count={12} size="sm" | "md" 
+     showCount={false} /> — read-only display.
+       - Default rendering: five stars only (★★★★☆), no number, no count. Used
+     on catalog cards, home featured cards, and the course detail hero meta row.
+       - showCount prop (default false) is reserved for future use — leave the
+     prop in place but every current caller renders stars-only.
+       - Empty state (count === 0): five greyed-out outline stars (☆☆☆☆☆)
+     followed by the text "No ratings yet" so the row is visually balanced and
+     unambiguous.
+       - Half-star handling: round to nearest half (e.g. 4.3 → 4, 4.6 → 4.5).
+     Render half via two overlaid <Star> icons (one outline, one filled with
+     clip-path: inset(0 50% 0 0)), or simpler: round to nearest whole star —
+     pick whichever looks cleaner during implementation.
+     - <StarRatingInput name="rating" defaultValue={3} disabled={…} /> —
+     interactive 5-button radio-style picker for use inside a <Form>. Each
+     button is a <button type="submit" name="rating" value={n}> so a single
+     click submits.
+
+     Keep the file <100 lines. No new dependencies.
+
+     4. Wire average rating into list / detail / home
+
+     - app/routes/courses.tsx loader (line 31–70) — after buildCourseQuery, call
+      getRatingStatsForCourses(courses.map(c => c.id)) once and merge the stats
+     into coursesWithLessonCount (alongside lessonCount, progress, etc.). Add
+     <StarRatingDisplay> in the card header (line ~204, between category and
+     title) or in the footer next to instructor — placement to be confirmed in
+     review.
+     - app/routes/courses.$slug.tsx loader — call
+     getCourseRatingStats(course.id) and (if user is enrolled)
+     getUserRating(currentUserId, course.id). Return both. In the JSX:
+       - Add <StarRatingDisplay> to the hero (after line 303, in the meta row
+     with instructor / lesson count).
+       - Add a "Rate this course" block to the right sidebar (inside the
+     enrolled branch around line 408) that posts to this route's new action.
+     Pre-fill with userRating if it exists.
+     - app/routes/courses.$slug.tsx action — currently the file has no action.
+     Add one that:
+       a. Reads currentUserId (401 if missing),
+       b. Validates intent === "rate" and rating ∈ [1..5] via zod +
+     parseFormData,
+       c. Verifies enrollment via isUserEnrolled (403 if not),
+       d. Calls upsertRating, returns { ok: true } for the fetcher to consume.
+     - app/routes/home.tsx loader (line 23–48) — same getRatingStatsForCourses
+     batch call for the featured 3, then render <StarRatingDisplay> in each card
+      footer (line ~190).
+     - app/routes/dashboard.tsx — no changes. The dashboard is a
+     personal-progress surface, not a discovery surface, and stays free of
+     rating clutter.
+
+     5. Tests — app/services/ratingService.test.ts
+
+     Follow enrollmentService.test.ts exactly: vi.mock("~/db"), createTestDb() +
+      seedBaseData() in beforeEach. Cover:
+     - upsertRating inserts on first call, updates on second call (same
+     user/course), preserves createdAt.
+     - upsertRating throws on rating outside 1–5.
+     - Unique constraint enforces one row per (userId, courseId) — second insert
+      via raw drizzle should fail.
+     - getCourseRatingStats returns {average: null, count: 0} for an unrated
+     course; correct average/count after several ratings.
+     - getRatingStatsForCourses batches correctly across multiple courses, omits
+      unrated courses from the map (or returns 0/null — pick one and document).
+
+     6. Critical files
+
+     ┌────────────────────────────────────┬─────────────────────────────────────
+     ┐
+     │                File                │               Change
+     │
+     ├────────────────────────────────────┼─────────────────────────────────────
+     ┤
+     │ app/db/schema.ts                   │ Add ratings table + uniqueIndex
+     │
+     │                                    │ import
+     │
+     ├────────────────────────────────────┼─────────────────────────────────────
+     ┤
+     │ drizzle/0003_*.sql                 │ Auto-generated migration (commit
+     │
+     │                                    │ it)
+     │
+     ├────────────────────────────────────┼─────────────────────────────────────
+     ┤
+     │ app/services/ratingService.ts      │ New — service
+     │
+     ├────────────────────────────────────┼─────────────────────────────────────
+     ┤
+     │ app/services/ratingService.test.ts │ New — tests
+     │
+     ├────────────────────────────────────┼─────────────────────────────────────
+     ┤
+     │ app/components/star-rating.tsx     │ New — display + input components
+     │
+     ├────────────────────────────────────┼─────────────────────────────────────
+     ┤
+     │ app/routes/courses.tsx             │ Loader: batch stats; UI: card
+     │
+     │                                    │ display
+     │
+     ├────────────────────────────────────┼─────────────────────────────────────
+     ┤
+     │                                    │ Loader: stats + own rating; new
+     │
+     │ app/routes/courses.$slug.tsx       │ action; UI: hero display + sidebar
+     │
+     │                                    │ input
+     │
+     ├────────────────────────────────────┼─────────────────────────────────────
+     ┤
+     │ app/routes/home.tsx                │ Loader: batch stats; UI:
+     │
+     │                                    │ featured-card display
+     │
+     └────────────────────────────────────┴─────────────────────────────────────
+     ┘
+
+     No changes needed to session.ts, validation.ts, enrollmentService.ts, or
+     courseService.ts.
+
+     7. Reused functions (don't reinvent)
+
+     - getCurrentUserId(request) — app/lib/session.ts:17
+     - parseFormData(formData, schema) — app/lib/validation.ts:15
+     - isUserEnrolled(userId, courseId) — app/services/enrollmentService.ts:56
+     - createTestDb(), seedBaseData() — app/test/setup.ts:19, :35
+     - Card, CardHeader, CardContent, CardFooter — existing UI primitives
+     - Star icon — from lucide-react (already in deps)
+
+     8. Verification
+
+     End-to-end check:
+
+     pnpm db:generate && pnpm db:migrate
+     pnpm typecheck
+     pnpm test                   # ratingService.test.ts must pass
+     pnpm dev
+
+     In the running app:
+     1. Switch to an enrolled student via DevUI panel.
+     2. Visit /courses/:slug for an enrolled course → "Rate this course" widget
+     appears in right sidebar.
+     3. Click 4 stars → page re-renders, your rating shows selected in the
+     sidebar, hero meta row shows ★★★★☆.
+     4. Visit /courses → that course's card shows ★★★★☆ (stars only, no number).
+     5. Visit / → if course is in "Featured", same ★★★★☆ display.
+     6. Switch to a different enrolled user → rate the same course 2 stars →
+     average rounds to 3 stars and updates to ★★★☆☆ on /courses, /courses/:slug,
+      and home featured.
+     7. Switch to a non-enrolled user → no widget shown, but ★★★☆☆ is still
+     visible.
+     8. Visit /courses/:slug for an unrated course → row shows ☆☆☆☆☆ No ratings 
+     yet.
+     9. Visit /dashboard → confirm no stars are rendered there (intentional).
+
+⏺ Plan approved. Loading task tracking and starting implementation.
+⏺ Starting with the schema change.
+
+⏺ Update(app/db/schema.ts)
+  ⎿  Added 7 lines, removed 1 line
+       1 -import { sqliteTable, text, integer, real } from "drizzle-orm/s
+         -qlite-core";                                                   
+       1 +import {                                                       
+       2 +  sqliteTable,                                                 
+       3 +  text,                                                        
+       4 +  integer,                                                     
+       5 +  real,                                                        
+       6 +  uniqueIndex,                                                 
+       7 +} from "drizzle-orm/sqlite-core";                              
+       8  
+       9  export enum UserRole {
+      10    Student = "student",
+
+⏺ Update(app/db/schema.ts)
+  ⎿  Added 26 lines
+      122    completedAt: text("completed_at"),
+      123  });
+      124  
+      125 +export const ratings = sqliteTable(                           
+      126 +  "ratings",                                                  
+      127 +  {                                                           
+      128 +    id: integer("id").primaryKey({ autoIncrement: true }),    
+      129 +    userId: integer("user_id")                                
+      130 +      .notNull()                                              
+      131 +      .references(() => users.id),                            
+      132 +    courseId: integer("course_id")                            
+      133 +      .notNull()                                              
+      134 +      .references(() => courses.id),                          
+      135 +    rating: integer("rating").notNull(),                      
+      136 +    createdAt: text("created_at")                             
+      137 +      .notNull()                                              
+      138 +      .$defaultFn(() => new Date().toISOString()),            
+      139 +    updatedAt: text("updated_at")                             
+      140 +      .notNull()                                              
+      141 +      .$defaultFn(() => new Date().toISOString()),            
+      142 +  },                                                          
+      143 +  (table) => ({                                               
+      144 +    userCourseUnique: uniqueIndex("ratings_user_course_unique"
+          +).on(                                                         
+      145 +      table.userId,                                           
+      146 +      table.courseId                                          
+      147 +    ),                                                        
+      148 +  })                                                          
+      149 +);                                                            
+      150 +                                                              
+      151  export const lessonProgress = sqliteTable("lesson_progress", {
+      152    id: integer("id").primaryKey({ autoIncrement: true }),
+      153    userId: integer("user_id")
+
+⏺ Bash(cd
+      "/Users/andreygladyshev/Desktop/programming/ClaudeCode/coursehunter/Claude
+       Code for Real Engineers/cohort-003-project" && pnpm db:generate 2>&1)
+  ⎿  > cadence-course-platform@ db:generate /Users/andreygladyshev/Desktop/
+     programming/ClaudeCode/coursehunter/Claude Code for Real Engineers/coh
+     ort-003-project
+     … +19 lines (ctrl+o to expand)
+
+⏺ Bash(cd
+      "/Users/andreygladyshev/Desktop/programming/ClaudeCode/coursehunter/Claude
+       Code for Real Engineers/cohort-003-project" && pnpm db:migrate 2>&1)
+  ⎿  > cadence-course-platform@ db:migrate /Users/andreygladyshev/Desktop/p
+     rogramming/ClaudeCode/coursehunter/Claude Code for Real Engineers/coho
+     rt-003-project
+     … +7 lines (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Migration looks good. Now creating the rating service.
+
+⏺ Write(app/services/ratingService.ts)
+  ⎿  Wrote 82 lines to app/services/ratingService.ts
+       2 import { db } from "~/db"; sql } from "drizzle-orm";
+       3 import { ratings } from "~/db/schema";
+       4 
+       5 export type CourseRatingStats = {
+       6   average: number | null;
+       7   count: number;
+       8 };
+       9 
+      10 export function getUserRating(userId: number, courseId: number) 
+         {
+     … +75 lines (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Write(app/services/ratingService.test.ts)
+  ⎿  Wrote 189 lines to app/services/ratingService.test.ts
+       1 import { describe, it, expect, beforeEach, vi } from "vitest";
+       2 import { createTestDb, seedBaseData } from "~/test/setup";
+       3 import * as schema from "~/db/schema";
+       4 
+       5 let testDb: ReturnType<typeof createTestDb>;
+       6 let base: ReturnType<typeof seedBaseData>;
+       7 
+       8 vi.mock("~/db", () => ({
+       9   get db() {
+      10     return testDb;
+     … +190 lines (ctrl+o to expand)
+⏺ Update(app/services/ratingService.test.ts)
+  ⎿  Added 1 line
+      1  import { describe, it, expect, beforeEach, vi } from "vitest";
+      2 +import { eq } from "drizzle-orm";                               
+      3  import { createTestDb, seedBaseData } from "~/test/setup";
+      4  import * as schema from "~/db/schema";
+      5  
+
+⏺ Update(app/services/ratingService.test.ts)
+  ⎿  Removed 3 lines
+      185      });
+      186    });
+      187  });
+      188 -                                                              
+      189 -// Imported here so the file's top-level `import` block stays 
+          -close to convention                                           
+      190 -import { eq } from "drizzle-orm";                             
+
+⏺ Bash(cd
+      "/Users/andreygladyshev/Desktop/programming/ClaudeCode/coursehunter/Claude
+       Code for Real Engineers/cohort-003-project" && pnpm test ratingService
+      2>&1 | tail…)
+  ⎿  > cadence-course-platform@ test /Users/andreygladyshev/Desktop/program
+     ming/ClaudeCode/coursehunter/Claude Code for Real Engineers/cohort-003
+     -project
+     … +13 lines (ctrl+o to expand)
+
+⏺ All 13 tests pass. Now creating the star-rating component.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Write(app/components/star-rating.tsx)
+  ⎿  Wrote 100 lines to app/components/star-rating.tsx
+       1 import { Star } from "lucide-react";
+       2 import { cn } from "~/lib/utils";
+       3 
+       4 const SIZES = {
+       5   sm: "size-3.5",
+       6   md: "size-4",
+       7   lg: "size-5",
+       8 } as const;
+       9 
+      10 type Size = keyof typeof SIZES;
+     … +94 lines (ctrl+o to expand)
+
+⏺ Now wiring ratings into the courses list page.
+
+⏺ Update(app/routes/courses.tsx)
+  ⎿  Added 2 lines
+       9  import { AlertTriangle, BookOpen, Search } from "lucide-react";
+      10  import { CourseImage } from "~/components/course-image";
+      11  import { UserAvatar } from "~/components/user-avatar";
+      12 +import { StarRatingDisplay } from "~/components/star-rating";  
+      13  import { getCurrentUserId } from "~/lib/session";
+      14  import { formatPrice } from "~/lib/utils";
+      15  import { getUserEnrolledCourses } from "~/services/enrollmentSe
+          rvice";
+      16  import { calculateProgress, getCompletedLessonCount } from "~/s
+          ervices/progressService";
+      17 +import { getRatingStatsForCourses } from "~/services/ratingServ
+         +ice";                                                          
+      18  import { resolveCountry } from "~/lib/country.server";
+      19  import { calculatePppPrice } from "~/lib/ppp";
+      20  
+
+⏺ Update(app/routes/courses.tsx)
+  ⎿  Added 5 lines
+      57      }
+      58    }
+      59  
+      60 +  const ratingStats = getRatingStatsForCourses(courses.map((c) 
+         +=> c.id));                                                     
+      61 +                                                               
+      62    const coursesWithLessonCount = courses.map((course) => {
+      63      const userProgress = progressMap.get(course.id);
+      64      const pppPrice = course.pppEnabled
+      65        ? calculatePppPrice(course.price, country)
+      66        : course.price;
+      67 +    const stats = ratingStats.get(course.id) ?? { average: null
+         +, count: 0 };                                                  
+      68      return {
+      69        ...course,
+      70        lessonCount: getLessonCountForCourse(course.id),
+      71        progress: userProgress?.progress ?? null,
+      72        completedLessons: userProgress?.completedLessons ?? null,
+      73        pppPrice,
+      74 +      ratingAverage: stats.average,                            
+      75 +      ratingCount: stats.count,                                
+      76      };
+      77    });
+      78  
+
+⏺ Update(app/routes/courses.tsx)
+  ⎿  Added 7 lines
+      216                    <p className="line-clamp-2 text-sm text-mute
+           d-foreground">
+      217                      {course.description}
+      218                    </p>
+      219 +                  <div className="mt-2">                      
+      220 +                    <StarRatingDisplay                        
+      221 +                      average={course.ratingAverage}          
+      222 +                      count={course.ratingCount}              
+      223 +                      size="sm"                               
+      224 +                    />                                        
+      225 +                  </div>                                      
+      226                  </CardContent>
+      227                  {course.progress !== null && course.progress >
+            0 && (
+      228                    <CardContent className="pt-0">
+
+⏺ Now wiring ratings into the course detail page (loader + action + UI).
+
+⏺ Update(app/routes/courses.$slug.tsx)
+  ⎿  Added 8 lines, removed 1 line
+      1  import { useEffect } from "react";
+      2 -import { Link, useSearchParams } from "react-router";           
+      2 +import { Link, useFetcher, useSearchParams } from "react-router"
+        +;                                                               
+      3  import { toast } from "sonner";
+      4 +import { z } from "zod";                                        
+      5  import type { Route } from "./+types/courses.$slug";
+      6  import {
+      7    getCourseBySlug,
+     ...
+      14    getLessonProgressForCourse,
+      15    getNextIncompleteLesson,
+      16  } from "~/services/progressService";
+      17 +import {                                                       
+      18 +  getCourseRatingStats,                                        
+      19 +  getUserRating,                                               
+      20 +  upsertRating,                                                
+      21 +} from "~/services/ratingService";                             
+      22  import { getCurrentUserId } from "~/lib/session";
+      23  import { LessonProgressStatus } from "~/db/schema";
+      24 +import { parseFormData } from "~/lib/validation";              
+      25  import { Card, CardContent, CardHeader } from "~/components/ui/
+          card";
+      26  import { Button } from "~/components/ui/button";
+      27  import { Skeleton } from "~/components/ui/skeleton";
+
+⏺ Update(app/routes/courses.$slug.tsx)
+  ⎿  Added 4 lines
+      44  } from "lucide-react";
+      45  import { CourseImage } from "~/components/course-image";
+      46  import { UserAvatar } from "~/components/user-avatar";
+      47 +import {                                                       
+      48 +  StarRatingDisplay,                                           
+      49 +  StarRatingInput,                                             
+      50 +} from "~/components/star-rating";                             
+      51  import { data, isRouteErrorResponse } from "react-router";
+      52  import { formatDuration, formatPrice } from "~/lib/utils";
+      53  import { renderMarkdown } from "~/lib/markdown.server";
+  ⎿  You've hit your limit · resets 12am (Asia/Jerusalem)
+     /upgrade to increase your usage limit.
+
+✻ Brewed for 2m 35s
+
+❯ /usage 
+  ⎿  Status dialog dismissed
+❯ /context                                                                      
+  ⎿  Context Usage
+     ⛁ ⛁ ⛁ ⛁ ⛁ ⛀ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   Opus 4.7
+     ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   claude-opus-4-7
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   133.8k/1m tokens (13%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ 
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   Estimated usage by category
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System prompt: 8.7k tokens 
+     (0.9%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ System tools: 17.1k tokens 
+     (1.7%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Skills: 810 tokens (0.1%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶   ⛁ Messages: 116.6k tokens (11.7%)
+     ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛶ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝ ⛝   ⛶ Free space: 823.9k (82.4%)
+                                               ⛝ Autocompact buffer: 33k tokens 
+     (3.3%)
+
+     MCP tools · /mcp (loaded on-demand)
+
+     Available
+     ├ mcp__ide__executeCode
+     └ mcp__ide__getDiagnostics
+
+     Skills · /skills
+
+     Project
+     ├ better-sqlite3-rebuild: 49 tokens
+     └ pnpm-not-found: 40 tokens
+
+❯ what can i do for start next session from this point?                         
+  ⎿  You've hit your limit · resets 12am (Asia/Jerusalem)
+     /upgrade to increase your usage limit.
+
+✻ Cooked for 0s

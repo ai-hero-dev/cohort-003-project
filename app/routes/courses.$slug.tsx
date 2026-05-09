@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useFetcher, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { z } from "zod";
 import type { Route } from "./+types/courses.$slug";
 import {
   getCourseBySlug,
@@ -13,8 +14,15 @@ import {
   getLessonProgressForCourse,
   getNextIncompleteLesson,
 } from "~/services/progressService";
+import {
+  getCourseRatingStats,
+  getUserRating,
+  upsertRating,
+} from "~/services/ratingService";
+import { getBookmarkedLessonIds } from "~/services/bookmarkService";
 import { getCurrentUserId } from "~/lib/session";
 import { LessonProgressStatus } from "~/db/schema";
+import { parseFormData } from "~/lib/validation";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -27,6 +35,7 @@ import {
 } from "~/components/ui/tabs";
 import {
   AlertTriangle,
+  Bookmark,
   BookOpen,
   CheckCircle2,
   Circle,
@@ -37,6 +46,10 @@ import {
 } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
+import {
+  StarRatingDisplay,
+  StarRatingInput,
+} from "~/components/star-rating";
 import { data, isRouteErrorResponse } from "react-router";
 import { formatDuration, formatPrice } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
@@ -71,6 +84,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   let progress = 0;
   let lessonProgressMap: Record<number, string> = {};
   let nextLessonId: number | null = null;
+  let userRating: number | null = null;
+  let bookmarkedLessonIds: number[] = [];
 
   if (currentUserId) {
     enrolled = isUserEnrolled(currentUserId, course.id);
@@ -88,8 +103,17 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
       const nextLesson = getNextIncompleteLesson(currentUserId, course.id);
       nextLessonId = nextLesson?.id ?? null;
+
+      userRating = getUserRating(currentUserId, course.id)?.rating ?? null;
+
+      bookmarkedLessonIds = getBookmarkedLessonIds({
+        userId: currentUserId,
+        courseId: course.id,
+      });
     }
   }
+
+  const ratingStats = getCourseRatingStats(course.id);
 
   // Render sales copy from Markdown to HTML server-side
   const salesCopyHtml = courseWithDetails.salesCopy
@@ -113,10 +137,43 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     currentUserId,
     pppPrice,
     tierInfo,
+    ratingStats,
+    userRating,
+    bookmarkedLessonIds,
   };
 }
 
-// No action — enrollment is handled via the purchase confirmation page
+const rateActionSchema = z.object({
+  intent: z.literal("rate"),
+  rating: z.coerce.number().int().min(1).max(5),
+});
+
+export async function action({ params, request }: Route.ActionArgs) {
+  const slug = params.slug;
+  const course = getCourseBySlug(slug);
+
+  if (!course) {
+    throw data("Course not found", { status: 404 });
+  }
+
+  const currentUserId = await getCurrentUserId(request);
+  if (!currentUserId) {
+    throw data("You must be logged in to rate a course.", { status: 401 });
+  }
+
+  const formData = await request.formData();
+  const parsed = parseFormData(formData, rateActionSchema);
+  if (!parsed.success) {
+    throw data("Invalid rating submission.", { status: 400 });
+  }
+
+  if (!isUserEnrolled(currentUserId, course.id)) {
+    throw data("Only enrolled students can rate this course.", { status: 403 });
+  }
+
+  upsertRating(currentUserId, course.id, parsed.data.rating);
+  return { ok: true };
+}
 
 export function HydrateFallback() {
   return (
@@ -181,9 +238,25 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     currentUserId,
     pppPrice,
     tierInfo,
+    ratingStats,
+    userRating,
+    bookmarkedLessonIds,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const [searchParams, setSearchParams] = useSearchParams();
+  const ratingFetcher = useFetcher<typeof action>();
+  const isSubmittingRating = ratingFetcher.state !== "idle";
+
+  useEffect(() => {
+    if (
+      ratingFetcher.state === "idle" &&
+      ratingFetcher.data &&
+      "ok" in ratingFetcher.data &&
+      ratingFetcher.data.ok
+    ) {
+      toast.success("Thanks for rating!");
+    }
+  }, [ratingFetcher.state, ratingFetcher.data]);
 
   useEffect(() => {
     if (searchParams.get("already_enrolled") === "1") {
@@ -320,6 +393,11 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               {formatDuration(totalDuration, true, false, false)} total
             </span>
           )}
+          <StarRatingDisplay
+            average={ratingStats.average}
+            count={ratingStats.count}
+            size="md"
+          />
         </div>
       </div>
 
@@ -355,6 +433,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               enrolled={enrolled}
               isInstructor={isInstructor}
               lessonProgressMap={lessonProgressMap}
+              bookmarkedLessonIds={new Set(bookmarkedLessonIds)}
             />
           </div>
         </div>
@@ -413,6 +492,22 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                       Buy More Seats
                     </Button>
                   </Link>
+                  <div className="rounded-md border bg-muted/30 p-3">
+                    <p className="mb-2 text-sm font-medium">
+                      {userRating !== null
+                        ? "Your rating"
+                        : "Rate this course"}
+                    </p>
+                    <ratingFetcher.Form method="post">
+                      <input type="hidden" name="intent" value="rate" />
+                      <StarRatingInput
+                        name="rating"
+                        value={userRating}
+                        size="md"
+                        disabled={isSubmittingRating}
+                      />
+                    </ratingFetcher.Form>
+                  </div>
                 </>
               ) : (
                 enrollButton
@@ -455,6 +550,7 @@ function CourseContent({
   enrolled,
   isInstructor,
   lessonProgressMap,
+  bookmarkedLessonIds,
 }: {
   course: {
     id: number;
@@ -472,6 +568,7 @@ function CourseContent({
   enrolled: boolean;
   isInstructor: boolean;
   lessonProgressMap: Record<number, string>;
+  bookmarkedLessonIds: Set<number>;
 }) {
   return (
     <div>
@@ -482,16 +579,23 @@ function CourseContent({
         </p>
       ) : (
         <div className="space-y-4">
-          {course.modules.map((mod) => (
+          {course.modules.map((mod) => {
+            const hasBookmarked = mod.lessons.some((l) =>
+              bookmarkedLessonIds.has(l.id)
+            );
+            return (
             <Card key={mod.id}>
               <CardHeader>
-                <h3 className="font-semibold">
+                <h3 className="flex items-center gap-2 font-semibold">
                   <Link
                     to={`/courses/${course.slug}/${mod.id}`}
                     className="hover:underline"
                   >
                     {mod.title}
                   </Link>
+                  {hasBookmarked && (
+                    <Bookmark className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
+                  )}
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {mod.lessons.length} lessons
@@ -557,6 +661,9 @@ function CourseContent({
                                 )}
                               </span>
                             )}
+                            {bookmarkedLessonIds.has(lesson.id) && (
+                              <Bookmark className="size-4 shrink-0 fill-amber-500 text-amber-500" />
+                            )}
                           </Link>
                         ) : (
                           <div className="flex items-center gap-3 px-3 py-2 text-sm">
@@ -581,7 +688,8 @@ function CourseContent({
                 </ul>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

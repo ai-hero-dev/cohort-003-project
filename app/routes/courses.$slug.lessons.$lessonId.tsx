@@ -17,6 +17,20 @@ import {
   markLessonInProgress,
 } from "~/services/progressService";
 import {
+  getCommentsForLesson,
+  createComment,
+  hideComment,
+  unhideComment,
+  deleteComment,
+  getCommentById,
+} from "~/services/commentService";
+import {
+  toggleBookmark,
+  isLessonBookmarked,
+  getBookmarkedLessonIds,
+} from "~/services/bookmarkService";
+import { getUserById } from "~/services/userService";
+import {
   getLastWatchPosition,
   calculateWatchProgress,
 } from "~/services/videoTrackingService";
@@ -26,7 +40,7 @@ import {
   getBestAttempt,
 } from "~/services/quizService";
 import { computeResult } from "~/services/quizScoringService";
-import { LessonProgressStatus } from "~/db/schema";
+import { LessonProgressStatus, UserRole } from "~/db/schema";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -39,6 +53,7 @@ import {
   Clock,
   Github,
   HelpCircle,
+  Bookmark,
   MapPin,
   PlayCircle,
   ShieldAlert,
@@ -55,6 +70,7 @@ import { resolveCountry } from "~/lib/country.server";
 import { checkPppAccess, COUNTRIES } from "~/lib/ppp";
 import { findPurchase } from "~/services/purchaseService";
 import { parseFormData, parseParams } from "~/lib/validation";
+import { LessonComments } from "~/components/lesson-comments";
 
 const lessonParamsSchema = z.object({
   slug: z.string().min(1),
@@ -138,6 +154,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   let lastWatchPosition = 0;
   let watchProgress = 0;
   let lessonProgressMap: Record<number, string> = {};
+  let isBookmarked = false;
+  let bookmarkedLessonIds: number[] = [];
 
   if (currentUserId) {
     enrolled = isUserEnrolled(currentUserId, course.id);
@@ -156,6 +174,15 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       for (const record of progressRecords) {
         lessonProgressMap[record.lessonId] = record.status;
       }
+
+      isBookmarked = isLessonBookmarked({
+        userId: currentUserId,
+        lessonId,
+      });
+      bookmarkedLessonIds = getBookmarkedLessonIds({
+        userId: currentUserId,
+        courseId: course.id,
+      });
 
       // Get video watch state for resume and progress display
       if (lesson.videoUrl) {
@@ -190,6 +217,24 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppBlockedCountry = pppResult.blockedCountry;
     pppPurchaseCountry = pppResult.purchaseCountry;
   }
+
+  // Determine if current user is instructor/admin for moderation
+  let isInstructorOrAdmin = false;
+  if (currentUserId) {
+    const currentUser = getUserById(currentUserId);
+    isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+  }
+
+  // Fetch comments with rendered markdown
+  const rawComments = getCommentsForLesson(lessonId, isInstructorOrAdmin);
+  const comments = await Promise.all(
+    rawComments.map(async (c) => ({
+      ...c,
+      contentHtml: await renderMarkdown(c.content),
+    }))
+  );
 
   // Render lesson content from Markdown to HTML server-side
   const contentHtml = lesson.content
@@ -281,6 +326,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments,
+    isInstructorOrAdmin,
+    isBookmarked,
+    bookmarkedLessonIds,
   };
 }
 
@@ -305,13 +354,20 @@ export async function action({ params, request }: Route.ActionArgs) {
     return { success: true };
   }
 
+  if (intent === "toggle-bookmark") {
+    if (!isUserEnrolled(currentUserId, course.id)) {
+      throw data("You must be enrolled to bookmark lessons.", { status: 403 });
+    }
+    const result = toggleBookmark({ userId: currentUserId, lessonId });
+    return { success: true, bookmarked: result.bookmarked };
+  }
+
   if (intent === "submit-quiz") {
     const quizId = Number(formData.get("quizId"));
     if (isNaN(quizId)) {
       throw data("Invalid quiz ID", { status: 400 });
     }
 
-    // Collect answers: form fields named "question-{questionId}" with value = optionId
     const selectedAnswers: Record<number, number> = {};
     for (const [key, value] of formData.entries()) {
       if (key.startsWith("question-")) {
@@ -329,6 +385,90 @@ export async function action({ params, request }: Route.ActionArgs) {
     }
 
     return { quizResult: result };
+  }
+
+  if (intent === "post-comment") {
+    const content = String(formData.get("content") ?? "").trim();
+    if (content.length === 0 || content.length > 2000) {
+      throw data("Comment must be between 1 and 2000 characters.", {
+        status: 400,
+      });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+
+    if (!isInstructorOrAdmin && !isUserEnrolled(currentUserId, course.id)) {
+      throw data("You must be enrolled to comment.", { status: 403 });
+    }
+
+    createComment(lessonId, currentUserId, content);
+    return { commentPosted: true };
+  }
+
+  if (intent === "hide-comment") {
+    const commentId = Number(formData.get("commentId"));
+    if (isNaN(commentId)) {
+      throw data("Invalid comment ID", { status: 400 });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+
+    if (!isInstructorOrAdmin) {
+      throw data("Only instructors can moderate comments.", { status: 403 });
+    }
+
+    hideComment(commentId);
+    return { commentHidden: true };
+  }
+
+  if (intent === "unhide-comment") {
+    const commentId = Number(formData.get("commentId"));
+    if (isNaN(commentId)) {
+      throw data("Invalid comment ID", { status: 400 });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+
+    if (!isInstructorOrAdmin) {
+      throw data("Only instructors can moderate comments.", { status: 403 });
+    }
+
+    unhideComment(commentId);
+    return { commentUnhidden: true };
+  }
+
+  if (intent === "delete-comment") {
+    const commentId = Number(formData.get("commentId"));
+    if (isNaN(commentId)) {
+      throw data("Invalid comment ID", { status: 400 });
+    }
+
+    const comment = getCommentById(commentId);
+    if (!comment) {
+      throw data("Comment not found", { status: 404 });
+    }
+
+    const currentUser = getUserById(currentUserId);
+    const isInstructorOrAdmin =
+      currentUserId === course.instructorId ||
+      currentUser?.role === UserRole.Admin;
+    const isOwner = comment.userId === currentUserId;
+
+    if (!isOwner && !isInstructorOrAdmin) {
+      throw data("You cannot delete this comment.", { status: 403 });
+    }
+
+    deleteComment(commentId);
+    return { commentDeleted: true };
   }
 
   throw data("Invalid action", { status: 400 });
@@ -382,8 +522,13 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments,
+    isInstructorOrAdmin,
+    isBookmarked,
+    bookmarkedLessonIds,
   } = loaderData;
   const [autoplay, toggleAutoplay] = useAutoplay();
+  const bookmarkFetcher = useFetcher({ key: `bookmark-${lesson.id}` });
   const fetcher = useFetcher({ key: `mark-complete-${lesson.id}` });
   const quizFetcher = useFetcher({ key: `quiz-${lesson.id}` });
   const navigate = useNavigate();
@@ -454,6 +599,7 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
         currentLessonId={lesson.id}
         lessonProgressMap={lessonProgressMap}
         enrolled={enrolled}
+        bookmarkedLessonIds={new Set(bookmarkedLessonIds)}
       />
 
       <div className="flex-1 p-6 lg:p-8">
@@ -501,6 +647,31 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
                   Open Code
                 </Button>
               </a>
+            )}
+            {enrolled && currentUserId && (
+              <bookmarkFetcher.Form method="post">
+                <input type="hidden" name="intent" value="toggle-bookmark" />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  disabled={bookmarkFetcher.state !== "idle"}
+                >
+                  <Bookmark
+                    className={cn(
+                      "mr-1.5 size-4",
+                      (bookmarkFetcher.formData
+                        ? !isBookmarked
+                        : isBookmarked)
+                        ? "fill-amber-500 text-amber-500"
+                        : "text-muted-foreground"
+                    )}
+                  />
+                  {(bookmarkFetcher.formData ? !isBookmarked : isBookmarked)
+                    ? "Bookmarked"
+                    : "Bookmark"}
+                </Button>
+              </bookmarkFetcher.Form>
             )}
           </div>
 
@@ -592,6 +763,17 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
             </div>
           )}
 
+          {/* Comments Section */}
+          {currentUserId && (
+            <LessonComments
+              comments={comments}
+              lessonId={lesson.id}
+              currentUserId={currentUserId}
+              isInstructorOrAdmin={isInstructorOrAdmin}
+              canComment={enrolled || isInstructorOrAdmin}
+            />
+          )}
+
           {/* Prev/Next Navigation */}
           <div className="flex items-center justify-between border-t pt-6">
             {prevLesson ? (
@@ -651,6 +833,7 @@ function CurriculumSidebar({
   currentLessonId,
   lessonProgressMap,
   enrolled,
+  bookmarkedLessonIds,
 }: {
   course: { id: number; title: string; slug: string };
   curriculum: Array<{
@@ -661,6 +844,7 @@ function CurriculumSidebar({
   currentLessonId: number;
   lessonProgressMap: Record<number, string>;
   enrolled: boolean;
+  bookmarkedLessonIds: Set<number>;
 }) {
   // Find which module the current lesson belongs to
   const currentModuleId = curriculum.find((m) =>
@@ -702,6 +886,10 @@ function CurriculumSidebar({
           {curriculum.map((mod) => {
             const isExpanded = expandedModules.has(mod.id);
 
+            const hasBookmarked = mod.lessons.some((l) =>
+              bookmarkedLessonIds.has(l.id)
+            );
+
             return (
               <div key={mod.id} className="mb-1">
                 <button
@@ -715,6 +903,9 @@ function CurriculumSidebar({
                     )}
                   />
                   <span className="flex-1 text-left">{mod.title}</span>
+                  {hasBookmarked && (
+                    <Bookmark className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
+                  )}
                 </button>
 
                 {isExpanded && (
@@ -749,7 +940,12 @@ function CurriculumSidebar({
                             ) : (
                               <Circle className="size-3.5 shrink-0" />
                             )}
-                            <span className="truncate">{l.title}</span>
+                            <span className="flex-1 truncate">
+                              {l.title}
+                            </span>
+                            {bookmarkedLessonIds.has(l.id) && (
+                              <Bookmark className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
+                            )}
                           </Link>
                         </li>
                       );
