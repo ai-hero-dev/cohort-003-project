@@ -94,8 +94,8 @@ importers:
         specifier: ^0.1.2
         version: 0.1.2
       ai-hero-cli:
-        specifier: ^0.4.0
-        version: 0.4.0
+        specifier: ^0.4.1
+        version: 0.4.1
       drizzle-kit:
         specifier: ^0.31.4
         version: 0.31.8
@@ -1964,8 +1964,8 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
-  ai-hero-cli@0.4.0:
-    resolution: {integrity: sha512-9itdhyBtc/KZyZXOjF+nmf0ap0NFHFnbuqlqoiMwblDifhtmeP5ASvPHsnBv/BbnfzZK8VpsvGD+J23W/umHyQ==}
+  ai-hero-cli@0.4.1:
+    resolution: {integrity: sha512-CHgIJPMIu2vDjsEY7xiN980R8j9F8GTmGh5u7H1Kwan3Ny6GrOdxk52iHknE5A+CkVPHkss0puhWCA9xGobU0g==}
     hasBin: true
 
   ajv-formats@3.0.1:
@@ -5792,7 +5792,7 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai-hero-cli@0.4.0: {}
+  ai-hero-cli@0.4.1: {}
 
   ajv-formats@3.0.1(ajv@8.17.1):
     optionalDependencies:

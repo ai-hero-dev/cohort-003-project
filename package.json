@@ -47,7 +47,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@types/youtube": "^0.1.2",
-    "ai-hero-cli": "^0.4.0",
+    "ai-hero-cli": "^0.4.1",
     "drizzle-kit": "^0.31.4",
     "prettier": "^3.8.1",
     "shadcn": "^3.8.4",
