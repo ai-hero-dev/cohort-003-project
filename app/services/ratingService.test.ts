@@ -11,7 +11,11 @@ vi.mock("~/db", () => ({
   },
 }));
 
-import { submitRating, getRatingForUser } from "./ratingService";
+import {
+  submitRating,
+  getRatingForUser,
+  getCourseRatingStats,
+} from "./ratingService";
 
 function enroll(userId: number, courseId: number) {
   return testDb
@@ -72,6 +76,34 @@ describe("ratingService", () => {
     it("returns undefined when the user has not rated the course", () => {
       const row = getRatingForUser(base.user.id, base.course.id);
       expect(row).toBeUndefined();
+    });
+  });
+
+  describe("getCourseRatingStats", () => {
+    it("returns { average: null, count: 0 } when no ratings exist", () => {
+      const stats = getCourseRatingStats(base.course.id);
+      expect(stats).toEqual({ average: null, count: 0 });
+    });
+
+    it("returns the correct average and count for a rated course", () => {
+      enroll(base.user.id, base.course.id);
+      submitRating(base.user.id, base.course.id, 5);
+
+      const otherUser = testDb
+        .insert(schema.users)
+        .values({
+          name: "Other",
+          email: "other@example.com",
+          role: schema.UserRole.Student,
+        })
+        .returning()
+        .get();
+      enroll(otherUser.id, base.course.id);
+      submitRating(otherUser.id, base.course.id, 3);
+
+      const stats = getCourseRatingStats(base.course.id);
+      expect(stats.count).toBe(2);
+      expect(stats.average).toBe(4);
     });
   });
 });

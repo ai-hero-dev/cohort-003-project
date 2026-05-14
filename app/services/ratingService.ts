@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "~/db";
 import { courseRatings, enrollments } from "~/db/schema";
 
@@ -52,4 +52,20 @@ export function getRatingForUser(userId: number, courseId: number) {
       )
     )
     .get();
+}
+
+export function getCourseRatingStats(courseId: number) {
+  const result = db
+    .select({
+      average: sql<number | null>`avg(${courseRatings.rating})`,
+      count: sql<number>`count(*)`,
+    })
+    .from(courseRatings)
+    .where(eq(courseRatings.courseId, courseId))
+    .get();
+
+  return {
+    average: result?.average ?? null,
+    count: result?.count ?? 0,
+  };
 }
