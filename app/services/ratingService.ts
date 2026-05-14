@@ -40,3 +40,16 @@ export function submitRating(userId: number, courseId: number, rating: number) {
     .returning()
     .get();
 }
+
+export function getRatingForUser(userId: number, courseId: number) {
+  return db
+    .select()
+    .from(courseRatings)
+    .where(
+      and(
+        eq(courseRatings.userId, userId),
+        eq(courseRatings.courseId, courseId)
+      )
+    )
+    .get();
+}

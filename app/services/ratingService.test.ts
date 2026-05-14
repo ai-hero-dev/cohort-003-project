@@ -11,7 +11,7 @@ vi.mock("~/db", () => ({
   },
 }));
 
-import { submitRating } from "./ratingService";
+import { submitRating, getRatingForUser } from "./ratingService";
 
 function enroll(userId: number, courseId: number) {
   return testDb
@@ -53,6 +53,25 @@ describe("ratingService", () => {
       expect(() =>
         submitRating(base.user.id, base.course.id, 5)
       ).toThrowError("User has already rated this course");
+    });
+  });
+
+  describe("getRatingForUser", () => {
+    it("returns the rating row when the user has rated the course", () => {
+      enroll(base.user.id, base.course.id);
+      submitRating(base.user.id, base.course.id, 5);
+
+      const row = getRatingForUser(base.user.id, base.course.id);
+
+      expect(row).toBeDefined();
+      expect(row?.rating).toBe(5);
+      expect(row?.userId).toBe(base.user.id);
+      expect(row?.courseId).toBe(base.course.id);
+    });
+
+    it("returns undefined when the user has not rated the course", () => {
+      const row = getRatingForUser(base.user.id, base.course.id);
+      expect(row).toBeUndefined();
     });
   });
 });
