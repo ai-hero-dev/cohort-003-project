@@ -15,6 +15,7 @@ import {
   submitRating,
   getRatingForUser,
   getCourseRatingStats,
+  getCourseRatingStatsForCourses,
 } from "./ratingService";
 
 function enroll(userId: number, courseId: number) {
@@ -104,6 +105,36 @@ describe("ratingService", () => {
       const stats = getCourseRatingStats(base.course.id);
       expect(stats.count).toBe(2);
       expect(stats.average).toBe(4);
+    });
+  });
+
+  describe("getCourseRatingStatsForCourses", () => {
+    it("returns an empty map when given an empty array", () => {
+      const map = getCourseRatingStatsForCourses([]);
+      expect(map.size).toBe(0);
+    });
+
+    it("returns stats per course, defaulting unrated courses to (null, 0)", () => {
+      const course2 = testDb
+        .insert(schema.courses)
+        .values({
+          title: "Course 2",
+          slug: "course-2",
+          description: "another",
+          instructorId: base.instructor.id,
+          categoryId: base.category.id,
+          status: schema.CourseStatus.Published,
+        })
+        .returning()
+        .get();
+
+      enroll(base.user.id, base.course.id);
+      submitRating(base.user.id, base.course.id, 4);
+
+      const map = getCourseRatingStatsForCourses([base.course.id, course2.id]);
+
+      expect(map.get(base.course.id)).toEqual({ average: 4, count: 1 });
+      expect(map.get(course2.id)).toEqual({ average: null, count: 0 });
     });
   });
 });

@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { db } from "~/db";
 import { courseRatings, enrollments } from "~/db/schema";
 
@@ -68,4 +68,36 @@ export function getCourseRatingStats(courseId: number) {
     average: result?.average ?? null,
     count: result?.count ?? 0,
   };
+}
+
+export function getCourseRatingStatsForCourses(courseIds: number[]) {
+  const stats = new Map<number, { average: number | null; count: number }>();
+
+  for (const id of courseIds) {
+    stats.set(id, { average: null, count: 0 });
+  }
+
+  if (courseIds.length === 0) {
+    return stats;
+  }
+
+  const rows = db
+    .select({
+      courseId: courseRatings.courseId,
+      average: sql<number | null>`avg(${courseRatings.rating})`,
+      count: sql<number>`count(*)`,
+    })
+    .from(courseRatings)
+    .where(inArray(courseRatings.courseId, courseIds))
+    .groupBy(courseRatings.courseId)
+    .all();
+
+  for (const row of rows) {
+    stats.set(row.courseId, {
+      average: row.average ?? null,
+      count: row.count ?? 0,
+    });
+  }
+
+  return stats;
 }
