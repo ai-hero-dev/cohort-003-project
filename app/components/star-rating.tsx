@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form } from "react-router";
+import { useFetcher } from "react-router";
 import { Star } from "lucide-react";
 
 type DisplayProps = {
@@ -61,10 +61,12 @@ function DisplayStars({ average, count, size = "sm" }: DisplayProps) {
 }
 
 function InputStars({ courseId }: { courseId: number }) {
+  const fetcher = useFetcher();
   const [hover, setHover] = useState<number | null>(null);
+  const submitting = fetcher.state !== "idle";
 
   return (
-    <Form
+    <fetcher.Form
       method="post"
       action="/api/rate-course"
       className="flex items-center gap-1"
@@ -76,10 +78,11 @@ function InputStars({ courseId }: { courseId: number }) {
           type="submit"
           name="rating"
           value={n}
+          disabled={submitting}
           onMouseEnter={() => setHover(n)}
           onMouseLeave={() => setHover(null)}
           aria-label={`Rate ${n} stars`}
-          className="rounded p-0.5 transition-colors hover:bg-muted"
+          className="rounded p-0.5 transition-colors hover:bg-muted disabled:opacity-50"
         >
           <Star
             className={
@@ -90,6 +93,6 @@ function InputStars({ courseId }: { courseId: number }) {
           />
         </button>
       ))}
-    </Form>
+    </fetcher.Form>
   );
 }
