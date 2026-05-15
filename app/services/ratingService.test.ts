@@ -51,13 +51,18 @@ describe("ratingService", () => {
       ).toThrowError("User is not enrolled in this course");
     });
 
-    it("throws when the user has already rated the course", () => {
+    it("updates the rating when the user has already rated the course", () => {
       enroll(base.user.id, base.course.id);
-      submitRating(base.user.id, base.course.id, 3);
+      const first = submitRating(base.user.id, base.course.id, 3);
 
-      expect(() =>
-        submitRating(base.user.id, base.course.id, 5)
-      ).toThrowError("User has already rated this course");
+      const second = submitRating(base.user.id, base.course.id, 5);
+
+      expect(second.id).toBe(first.id);
+      expect(second.rating).toBe(5);
+
+      const stats = getCourseRatingStats(base.course.id);
+      expect(stats.count).toBe(1);
+      expect(stats.average).toBe(5);
     });
   });
 

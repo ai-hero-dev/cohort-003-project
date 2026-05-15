@@ -435,18 +435,14 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                     </Button>
                   </Link>
                   <div className="border-t pt-4">
-                    {userRating ? (
-                      <p className="text-sm text-muted-foreground">
-                        You rated {userRating.rating}★
-                      </p>
-                    ) : (
-                      <div>
-                        <p className="mb-2 text-sm font-medium">
-                          Rate this course
-                        </p>
-                        <StarRating mode="input" courseId={course.id} />
-                      </div>
-                    )}
+                    <p className="mb-2 text-sm font-medium">
+                      {userRating ? "Your rating" : "Rate this course"}
+                    </p>
+                    <StarRating
+                      mode="input"
+                      courseId={course.id}
+                      currentRating={userRating?.rating ?? null}
+                    />
                   </div>
                 </>
               ) : (

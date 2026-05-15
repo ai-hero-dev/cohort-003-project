@@ -12,6 +12,7 @@ type DisplayProps = {
 type InputProps = {
   mode: "input";
   courseId: number;
+  currentRating: number | null;
 };
 
 type StarRatingProps = DisplayProps | InputProps;
@@ -20,7 +21,9 @@ export function StarRating(props: StarRatingProps) {
   if (props.mode === "display") {
     return <DisplayStars {...props} />;
   }
-  return <InputStars courseId={props.courseId} />;
+  return (
+    <InputStars courseId={props.courseId} currentRating={props.currentRating} />
+  );
 }
 
 function DisplayStars({ average, count, size = "sm" }: DisplayProps) {
@@ -60,10 +63,17 @@ function DisplayStars({ average, count, size = "sm" }: DisplayProps) {
   );
 }
 
-function InputStars({ courseId }: { courseId: number }) {
+function InputStars({
+  courseId,
+  currentRating,
+}: {
+  courseId: number;
+  currentRating: number | null;
+}) {
   const fetcher = useFetcher();
   const [hover, setHover] = useState<number | null>(null);
   const submitting = fetcher.state !== "idle";
+  const highlightedThrough = hover ?? currentRating ?? 0;
 
   return (
     <fetcher.Form
@@ -86,7 +96,7 @@ function InputStars({ courseId }: { courseId: number }) {
         >
           <Star
             className={
-              hover !== null && n <= hover
+              n <= highlightedThrough
                 ? "size-5 fill-yellow-400 text-yellow-400"
                 : "size-5 text-muted-foreground/60"
             }

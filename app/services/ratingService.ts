@@ -3,8 +3,8 @@ import { db } from "~/db";
 import { courseRatings, enrollments } from "~/db/schema";
 
 // ─── Rating Service ───
-// One rating per enrolled student per course, immutable after submission.
-// Averages are computed on read via SQL aggregates (no denormalization).
+// One rating per enrolled student per course; students may update their rating
+// later. Averages are computed on read via SQL aggregates (no denormalization).
 
 export function submitRating(userId: number, courseId: number, rating: number) {
   const enrollment = db
@@ -19,24 +19,13 @@ export function submitRating(userId: number, courseId: number, rating: number) {
     throw new Error("User is not enrolled in this course");
   }
 
-  const existing = db
-    .select()
-    .from(courseRatings)
-    .where(
-      and(
-        eq(courseRatings.userId, userId),
-        eq(courseRatings.courseId, courseId)
-      )
-    )
-    .get();
-
-  if (existing) {
-    throw new Error("User has already rated this course");
-  }
-
   return db
     .insert(courseRatings)
     .values({ userId, courseId, rating })
+    .onConflictDoUpdate({
+      target: [courseRatings.userId, courseRatings.courseId],
+      set: { rating },
+    })
     .returning()
     .get();
 }

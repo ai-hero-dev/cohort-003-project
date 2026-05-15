@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add a star-rating system to Cadence so enrolled students can rate courses (1–5 stars, one rating per student, immutable after submission). The average rating is displayed wherever courses appear: the course list page and the course detail page.
+Add a star-rating system to Cadence so enrolled students can rate courses (1–5 stars, one rating per student, updatable at any time). The average rating is displayed wherever courses appear: the course list page and the course detail page.
 
 ---
 
@@ -13,7 +13,7 @@ Add a star-rating system to Cadence so enrolled students can rate courses (1–5
 
 - Only enrolled students may submit a rating.
 - Ratings are integers 1–5.
-- One rating per student per course; once submitted it cannot be changed.
+- One rating per student per course; the student may update their rating at any time. The latest submission replaces the previous value.
 - The average rating (and count) is visible on the course list cards and the course detail page.
 - No written reviews — star rating only.
 
@@ -62,7 +62,7 @@ export const courseRatings = sqliteTable(
 
 | Function | Description |
 |---|---|
-| `submitRating(userId, courseId, rating)` | Inserts a new rating. Throws if user is not enrolled or has already rated. |
+| `submitRating(userId, courseId, rating)` | Upserts the rating (insert on first call, update on subsequent calls via `ON CONFLICT (userId, courseId) DO UPDATE`). Throws if user is not enrolled. |
 | `getRatingForUser(userId, courseId)` | Returns the user's existing rating row, or `undefined`. |
 | `getCourseRatingStats(courseId)` | Returns `{ average: number \| null, count: number }` via `AVG` + `COUNT`. |
 | `getCourseRatingStatsForCourses(courseIds[])` | Bulk version — one SQL query for the list page; returns a `Map<courseId, stats>`. |
@@ -79,8 +79,7 @@ Steps:
 1. Require authenticated user → 401 if not.
 2. Parse and validate `courseId` (integer) and `rating` (integer 1–5) from form body using Zod.
 3. Verify user is enrolled in the course → 403 if not.
-4. Check user hasn't already rated → 400 if duplicate.
-5. Call `submitRating()` and return `{ ok: true }` JSON.
+4. Call `submitRating()` (which upserts) and return `{ ok: true }` JSON.
 
 Route registered in `app/routes.ts` alongside the other `api.*` routes.
 
@@ -93,7 +92,7 @@ Route registered in `app/routes.ts` alongside the other `api.*` routes.
 Two modes via a `mode` prop:
 
 - **`mode="display"`** — read-only; renders filled/partial/empty stars from a float average. Accepts `average: number | null` and `count: number`.
-- **`mode="input"`** — interactive; 5 clickable stars with hover highlight. On click, submits a hidden form to `/api/rate-course`. Accepts `courseId: number`.
+- **`mode="input"`** — interactive; 5 clickable stars with hover highlight. Pre-highlights the user's existing rating (if any) when not hovering. On click, submits a hidden form (via `useFetcher`, so no navigation) to `/api/rate-course`. Accepts `courseId: number` and `currentRating: number | null`.
 
 ### Course list page (`app/routes/courses.tsx`)
 
@@ -107,8 +106,8 @@ Two modes via a `mode` prop:
 - `<StarRating mode="display" />` added to the metadata row (instructor / lessons / duration).
 
 **Sidebar card (enrolled students only):**
-- If enrolled and no existing rating: shows `<StarRating mode="input" courseId={course.id} />` with label "Rate this course".
-- If enrolled and already rated: shows "You rated X★" static label.
+- Always shows `<StarRating mode="input" courseId={course.id} currentRating={userRating?.rating ?? null} />`.
+- Label is "Your rating" if the user has already rated, otherwise "Rate this course".
 - Non-enrolled visitors: no rating UI in sidebar.
 
 Loader additions:
@@ -121,10 +120,10 @@ Loader additions:
 
 ```
 User clicks a star (course detail page)
-  → StarRating submits <Form action="/api/rate-course" method="post">
-  → api.rate-course action: validates → checks enrollment → inserts rating
-  → React Router revalidates courses.$slug loader
-  → Updated average rendered automatically
+  → StarRating submits via useFetcher().Form to /api/rate-course
+  → api.rate-course action: validates → checks enrollment → upserts rating
+  → React Router revalidates courses.$slug loader (no navigation)
+  → Updated average + user's own rating rendered automatically
 ```
 
 ---
@@ -135,12 +134,11 @@ User clicks a star (course detail page)
 |---|---|
 | Not logged in | 401 — redirect to login |
 | Not enrolled | 403 — ignored silently on client (button never shown) |
-| Already rated | 400 — ignored silently on client (input never shown after rating) |
 | Invalid rating value | Zod validation → 400 with error message |
 
 ---
 
 ## Testing
 
-- **`ratingService.test.ts`** — unit tests for all four service functions: happy path, duplicate rejection, non-enrollment rejection, bulk stats.
+- **`ratingService.test.ts`** — unit tests for all four service functions: happy path, update-on-resubmit, non-enrollment rejection, bulk stats.
 - No route-level tests (consistent with the rest of the codebase).

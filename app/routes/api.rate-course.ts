@@ -4,7 +4,7 @@ import type { Route } from "./+types/api.rate-course";
 import { getCurrentUserId } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
 import { isUserEnrolled } from "~/services/enrollmentService";
-import { submitRating, getRatingForUser } from "~/services/ratingService";
+import { submitRating } from "~/services/ratingService";
 
 const rateCourseSchema = z.object({
   courseId: z.coerce.number().int().positive(),
@@ -27,10 +27,6 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (!isUserEnrolled(currentUserId, courseId)) {
     throw data("Not enrolled in this course", { status: 403 });
-  }
-
-  if (getRatingForUser(currentUserId, courseId)) {
-    throw data("Already rated", { status: 400 });
   }
 
   submitRating(currentUserId, courseId, rating);
