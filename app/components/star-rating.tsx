@@ -80,6 +80,7 @@ function InputStars({
       method="post"
       action="/api/rate-course"
       className="flex items-center gap-1"
+      onMouseLeave={() => setHover(null)}
     >
       <input type="hidden" name="courseId" value={courseId} />
       {[1, 2, 3, 4, 5].map((n) => (
@@ -90,7 +91,6 @@ function InputStars({
           value={n}
           disabled={submitting}
           onMouseEnter={() => setHover(n)}
-          onMouseLeave={() => setHover(null)}
           aria-label={`Rate ${n} stars`}
           className="rounded p-0.5 transition-colors hover:bg-muted disabled:opacity-50"
         >
