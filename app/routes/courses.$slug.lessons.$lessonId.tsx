@@ -50,19 +50,19 @@ import { cn, formatDuration } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
 import { YouTubePlayer } from "~/components/youtube-player";
 import { data, isRouteErrorResponse } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import { resolveCountry } from "~/lib/country.server";
 import { checkPppAccess, COUNTRIES } from "~/lib/ppp";
 import { findPurchase } from "~/services/purchaseService";
 import { parseFormData, parseParams } from "~/lib/validation";
 
-const lessonParamsSchema = z.object({
-  slug: z.string().min(1),
-  lessonId: z.coerce.number().int(),
+const lessonParamsSchema = v.object({
+  slug: v.pipe(v.string(), v.nonEmpty()),
+  lessonId: v.pipe(v.unknown(), v.transform(Number), v.number(), v.integer()),
 });
 
-const markCompleteSchema = z.object({
-  intent: z.literal("mark-complete"),
+const markCompleteSchema = v.object({
+  intent: v.literal("mark-complete"),
 });
 
 export function meta({ data: loaderData }: Route.MetaArgs) {

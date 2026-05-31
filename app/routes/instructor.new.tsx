@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, redirect, useFetcher } from "react-router";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/instructor.new";
 import { createCourse, getCourseBySlug } from "~/services/courseService";
 import { getAllCategories, slugify as generateSlug } from "~/services/categoryService";
@@ -24,11 +24,15 @@ import {
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 
-const newCourseSchema = z.object({
-  title: z.string().trim().min(1, "Title is required."),
-  description: z.string().trim().min(1, "Description is required."),
-  categoryId: z.string().min(1, "Category is required."),
-  coverImageUrl: z.string().trim().optional(),
+const newCourseSchema = v.object({
+  title: v.pipe(v.string(), v.trim(), v.nonEmpty("Title is required.")),
+  description: v.pipe(
+    v.string(),
+    v.trim(),
+    v.nonEmpty("Description is required.")
+  ),
+  categoryId: v.pipe(v.string(), v.nonEmpty("Category is required.")),
+  coverImageUrl: v.optional(v.pipe(v.string(), v.trim())),
 });
 
 export function meta() {

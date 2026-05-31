@@ -1,7 +1,7 @@
 import { useRef, useEffect } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/settings";
 import { getCurrentUserId } from "~/lib/session";
 import { getUserById, updateUser } from "~/services/userService";
@@ -15,9 +15,9 @@ import { UserRole } from "~/db/schema";
 import { AlertTriangle } from "lucide-react";
 import { data, isRouteErrorResponse, Link } from "react-router";
 
-const settingsSchema = z.object({
-  name: z.string().trim().min(1, "Name cannot be empty."),
-  bio: z.string().trim().optional(),
+const settingsSchema = v.object({
+  name: v.pipe(v.string(), v.trim(), v.nonEmpty("Name cannot be empty.")),
+  bio: v.optional(v.pipe(v.string(), v.trim())),
 });
 
 export function meta() {

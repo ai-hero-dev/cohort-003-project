@@ -71,29 +71,104 @@ import {
   FileText,
 } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import { parseFormData, parseParams } from "~/lib/validation";
 
-const courseEditorParamsSchema = z.object({
-  courseId: z.coerce.number().int(),
+const courseEditorParamsSchema = v.object({
+  courseId: v.pipe(v.unknown(), v.transform(Number), v.number(), v.integer()),
 });
 
-const courseEditorActionSchema = z.discriminatedUnion("intent", [
-  z.object({ intent: z.literal("update-title"), title: z.string().trim().min(1, "Title cannot be empty.") }),
-  z.object({ intent: z.literal("update-description"), description: z.string().trim().min(1, "Description cannot be empty.") }),
-  z.object({ intent: z.literal("update-status"), status: z.nativeEnum(CourseStatus) }),
-  z.object({ intent: z.literal("update-price"), price: z.string() }),
-  z.object({ intent: z.literal("update-ppp-enabled"), pppEnabled: z.string() }),
-  z.object({ intent: z.literal("add-module"), title: z.string().trim().min(1, "Module title cannot be empty.") }),
-  z.object({ intent: z.literal("rename-module"), moduleId: z.coerce.number().int(), title: z.string().trim().min(1, "Module title cannot be empty.") }),
-  z.object({ intent: z.literal("delete-module"), moduleId: z.coerce.number().int() }),
-  z.object({ intent: z.literal("add-lesson"), moduleId: z.coerce.number().int(), title: z.string().trim().min(1, "Lesson title cannot be empty.") }),
-  z.object({ intent: z.literal("rename-lesson"), lessonId: z.coerce.number().int(), title: z.string().trim().min(1, "Lesson title cannot be empty.") }),
-  z.object({ intent: z.literal("reorder-modules"), moduleIds: z.string().min(1, "Missing module IDs.") }),
-  z.object({ intent: z.literal("reorder-lessons"), moduleId: z.coerce.number().int(), lessonIds: z.string().min(1, "Missing lesson IDs.") }),
-  z.object({ intent: z.literal("move-lesson"), lessonId: z.coerce.number().int(), targetModuleId: z.coerce.number().int(), targetPosition: z.coerce.number().int() }),
-  z.object({ intent: z.literal("delete-lesson"), lessonId: z.coerce.number().int() }),
-  z.object({ intent: z.literal("update-sales-copy"), salesCopy: z.string().optional() }),
+const coerceInt = v.pipe(
+  v.unknown(),
+  v.transform(Number),
+  v.number(),
+  v.integer()
+);
+
+const courseEditorActionSchema = v.variant("intent", [
+  v.object({
+    intent: v.literal("update-title"),
+    title: v.pipe(v.string(), v.trim(), v.nonEmpty("Title cannot be empty.")),
+  }),
+  v.object({
+    intent: v.literal("update-description"),
+    description: v.pipe(
+      v.string(),
+      v.trim(),
+      v.nonEmpty("Description cannot be empty.")
+    ),
+  }),
+  v.object({
+    intent: v.literal("update-status"),
+    status: v.enum(CourseStatus),
+  }),
+  v.object({ intent: v.literal("update-price"), price: v.string() }),
+  v.object({
+    intent: v.literal("update-ppp-enabled"),
+    pppEnabled: v.string(),
+  }),
+  v.object({
+    intent: v.literal("add-module"),
+    title: v.pipe(
+      v.string(),
+      v.trim(),
+      v.nonEmpty("Module title cannot be empty.")
+    ),
+  }),
+  v.object({
+    intent: v.literal("rename-module"),
+    moduleId: coerceInt,
+    title: v.pipe(
+      v.string(),
+      v.trim(),
+      v.nonEmpty("Module title cannot be empty.")
+    ),
+  }),
+  v.object({
+    intent: v.literal("delete-module"),
+    moduleId: coerceInt,
+  }),
+  v.object({
+    intent: v.literal("add-lesson"),
+    moduleId: coerceInt,
+    title: v.pipe(
+      v.string(),
+      v.trim(),
+      v.nonEmpty("Lesson title cannot be empty.")
+    ),
+  }),
+  v.object({
+    intent: v.literal("rename-lesson"),
+    lessonId: coerceInt,
+    title: v.pipe(
+      v.string(),
+      v.trim(),
+      v.nonEmpty("Lesson title cannot be empty.")
+    ),
+  }),
+  v.object({
+    intent: v.literal("reorder-modules"),
+    moduleIds: v.pipe(v.string(), v.nonEmpty("Missing module IDs.")),
+  }),
+  v.object({
+    intent: v.literal("reorder-lessons"),
+    moduleId: coerceInt,
+    lessonIds: v.pipe(v.string(), v.nonEmpty("Missing lesson IDs.")),
+  }),
+  v.object({
+    intent: v.literal("move-lesson"),
+    lessonId: coerceInt,
+    targetModuleId: coerceInt,
+    targetPosition: coerceInt,
+  }),
+  v.object({
+    intent: v.literal("delete-lesson"),
+    lessonId: coerceInt,
+  }),
+  v.object({
+    intent: v.literal("update-sales-copy"),
+    salesCopy: v.optional(v.string()),
+  }),
 ]);
 
 export function meta({ data: loaderData }: Route.MetaArgs) {

@@ -1,6 +1,6 @@
 import { Form, Link, useActionData, useNavigation, useSearchParams } from "react-router";
 import { redirect, data } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/signup";
 import { getUserByEmail, createUser } from "~/services/userService";
 import { UserRole } from "~/db/schema";
@@ -10,14 +10,15 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 
-const signupSchema = z.object({
-  name: z.string().trim().min(1, "Name is required."),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .min(1, "Email is required.")
-    .email("Please enter a valid email address."),
+const signupSchema = v.object({
+  name: v.pipe(v.string(), v.trim(), v.nonEmpty("Name is required.")),
+  email: v.pipe(
+    v.string(),
+    v.trim(),
+    v.toLowerCase(),
+    v.nonEmpty("Email is required."),
+    v.email("Please enter a valid email address.")
+  ),
 });
 
 export function meta() {

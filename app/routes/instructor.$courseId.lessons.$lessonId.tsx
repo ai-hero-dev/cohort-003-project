@@ -16,20 +16,20 @@ import { Label } from "~/components/ui/label";
 import { MonacoMarkdownEditor } from "~/components/monaco-markdown-editor";
 import { AlertTriangle, ArrowLeft, ClipboardList, ExternalLink, Github, Save } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import { parseFormData, parseParams } from "~/lib/validation";
 
-const instructorLessonParamsSchema = z.object({
-  courseId: z.coerce.number().int(),
-  lessonId: z.coerce.number().int(),
+const instructorLessonParamsSchema = v.object({
+  courseId: v.pipe(v.unknown(), v.transform(Number), v.number(), v.integer()),
+  lessonId: v.pipe(v.unknown(), v.transform(Number), v.number(), v.integer()),
 });
 
-const updateLessonSchema = z.object({
-  intent: z.literal("update-lesson"),
-  content: z.string().optional(),
-  videoUrl: z.string().trim().optional(),
-  durationMinutes: z.string().optional(),
-  githubRepoUrl: z.string().trim().optional(),
+const updateLessonSchema = v.object({
+  intent: v.literal("update-lesson"),
+  content: v.optional(v.string()),
+  videoUrl: v.optional(v.pipe(v.string(), v.trim())),
+  durationMinutes: v.optional(v.string()),
+  githubRepoUrl: v.optional(v.pipe(v.string(), v.trim())),
 });
 
 export function meta({ data: loaderData }: Route.MetaArgs) {

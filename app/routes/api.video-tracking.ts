@@ -1,14 +1,14 @@
 import { data } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/api.video-tracking";
 import { getCurrentUserId } from "~/lib/session";
 import { logWatchEvent } from "~/services/videoTrackingService";
 import { parseJsonBody } from "~/lib/validation";
 
-const videoTrackingSchema = z.object({
-  lessonId: z.number(),
-  eventType: z.string(),
-  positionSeconds: z.number(),
+const videoTrackingSchema = v.object({
+  lessonId: v.number(),
+  eventType: v.string(),
+  positionSeconds: v.number(),
 });
 
 export async function action({ request }: Route.ActionArgs) {

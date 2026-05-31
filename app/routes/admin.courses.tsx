@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/admin.courses";
 import {
   getAllCourses,
@@ -26,11 +26,16 @@ import {
 import { AlertTriangle, BookOpen, Users } from "lucide-react";
 import { data, isRouteErrorResponse, Link } from "react-router";
 
-const adminCourseActionSchema = z.discriminatedUnion("intent", [
-  z.object({
-    intent: z.literal("update-status"),
-    courseId: z.coerce.number().int(),
-    status: z.nativeEnum(CourseStatus),
+const adminCourseActionSchema = v.variant("intent", [
+  v.object({
+    intent: v.literal("update-status"),
+    courseId: v.pipe(
+      v.unknown(),
+      v.transform(Number),
+      v.number(),
+      v.integer()
+    ),
+    status: v.enum(CourseStatus),
   }),
 ]);
 

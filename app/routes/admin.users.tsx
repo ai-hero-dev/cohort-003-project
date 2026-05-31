@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as v from "valibot";
 import type { Route } from "./+types/admin.users";
 import { getAllUsers, updateUser, updateUserRole } from "~/services/userService";
 import { getCurrentUserId } from "~/lib/session";
@@ -21,17 +21,27 @@ import {
 import { AlertTriangle, Pencil, Shield, Users } from "lucide-react";
 import { data, isRouteErrorResponse, Link } from "react-router";
 
-const adminUserActionSchema = z.discriminatedUnion("intent", [
-  z.object({
-    intent: z.literal("update-user"),
-    userId: z.coerce.number().int(),
-    name: z.string().trim().min(1, "Name cannot be empty."),
-    email: z.string().trim().min(1, "Email cannot be empty."),
+const adminUserActionSchema = v.variant("intent", [
+  v.object({
+    intent: v.literal("update-user"),
+    userId: v.pipe(
+      v.unknown(),
+      v.transform(Number),
+      v.number(),
+      v.integer()
+    ),
+    name: v.pipe(v.string(), v.trim(), v.nonEmpty("Name cannot be empty.")),
+    email: v.pipe(v.string(), v.trim(), v.nonEmpty("Email cannot be empty.")),
   }),
-  z.object({
-    intent: z.literal("update-role"),
-    userId: z.coerce.number().int(),
-    role: z.nativeEnum(UserRole),
+  v.object({
+    intent: v.literal("update-role"),
+    userId: v.pipe(
+      v.unknown(),
+      v.transform(Number),
+      v.number(),
+      v.integer()
+    ),
+    role: v.enum(UserRole),
   }),
 ]);
 

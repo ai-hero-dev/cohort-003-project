@@ -49,42 +49,43 @@ import {
   type DropResult,
 } from "@hello-pangea/dnd";
 import { data, isRouteErrorResponse } from "react-router";
-import { z } from "zod";
+import * as v from "valibot";
 import { parseFormData, parseParams } from "~/lib/validation";
 
-const quizParamsSchema = z.object({
-  courseId: z.coerce.number().int(),
-  lessonId: z.coerce.number().int(),
+const quizParamsSchema = v.object({
+  courseId: v.pipe(v.unknown(), v.transform(Number), v.number(), v.integer()),
+  lessonId: v.pipe(v.unknown(), v.transform(Number), v.number(), v.integer()),
 });
 
-const wizardDataSchema = z.object({
-  title: z.string().trim().min(1, "Quiz title is required."),
-  passingScore: z.number(),
-  questions: z
-    .array(
-      z.object({
-        id: z.string(),
-        text: z.string(),
-        type: z.nativeEnum(QuestionType),
-        options: z.array(
-          z.object({
-            id: z.string(),
-            text: z.string(),
-            isCorrect: z.boolean(),
+const wizardDataSchema = v.object({
+  title: v.pipe(v.string(), v.trim(), v.nonEmpty("Quiz title is required.")),
+  passingScore: v.number(),
+  questions: v.pipe(
+    v.array(
+      v.object({
+        id: v.string(),
+        text: v.string(),
+        type: v.enum(QuestionType),
+        options: v.array(
+          v.object({
+            id: v.string(),
+            text: v.string(),
+            isCorrect: v.boolean(),
           })
         ),
       })
-    )
-    .min(1, "At least one question is required."),
+    ),
+    v.minLength(1, "At least one question is required.")
+  ),
 });
 
-const quizActionSchema = z.discriminatedUnion("intent", [
-  z.object({
-    intent: z.literal("save-quiz"),
-    wizardData: z.string(),
+const quizActionSchema = v.variant("intent", [
+  v.object({
+    intent: v.literal("save-quiz"),
+    wizardData: v.string(),
   }),
-  z.object({
-    intent: z.literal("delete-quiz"),
+  v.object({
+    intent: v.literal("delete-quiz"),
   }),
 ]);
 
@@ -218,14 +219,14 @@ export async function action({ params, request }: Route.ActionArgs) {
   const { intent } = parsed.data;
 
   if (intent === "save-quiz") {
-    let wizardData: z.infer<typeof wizardDataSchema>;
+    let wizardData: v.InferOutput<typeof wizardDataSchema>;
     try {
       const raw = JSON.parse(parsed.data.wizardData);
-      const wizardResult = wizardDataSchema.safeParse(raw);
+      const wizardResult = v.safeParse(wizardDataSchema, raw);
       if (!wizardResult.success) {
         return data({ error: "Invalid quiz data." }, { status: 400 });
       }
-      wizardData = wizardResult.data;
+      wizardData = wizardResult.output;
     } catch {
       return data({ error: "Invalid quiz data." }, { status: 400 });
     }
