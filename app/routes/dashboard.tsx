@@ -9,6 +9,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { AlertTriangle, BookOpen, CheckCircle2, GraduationCap, PlayCircle } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { data, isRouteErrorResponse } from "react-router";
+import { getCourseAverageRatings } from "~/services/ratingService";
+import { StarDisplay } from "~/components/star-rating";
 
 export function meta() {
   return [
@@ -59,7 +61,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   const completedCourses = coursesWithProgress.filter((c) => c.isCompleted);
   const inProgressCourses = coursesWithProgress.filter((c) => !c.isCompleted);
 
-  return { inProgressCourses, completedCourses };
+  const allCourseIds = coursesWithProgress.map((c) => c.courseId);
+  const ratingsMap = getCourseAverageRatings(allCourseIds);
+
+  const withRatings = (list: typeof coursesWithProgress) =>
+    list.map((c) => {
+      const r = ratingsMap.get(c.courseId);
+      return { ...c, averageRating: r?.average ?? null, ratingCount: r?.count ?? 0 };
+    });
+
+  return {
+    inProgressCourses: withRatings(inProgressCourses),
+    completedCourses: withRatings(completedCourses),
+  };
 }
 
 function DashboardCardSkeleton() {
@@ -160,6 +174,9 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                       <p className="line-clamp-2 text-sm text-muted-foreground">
                         {course.courseDescription}
                       </p>
+                      {course.ratingCount > 0 && (
+                        <StarDisplay value={course.averageRating} count={course.ratingCount} />
+                      )}
                     </CardHeader>
                     <CardContent className="flex-1">
                       <div className="mb-2 flex items-center justify-between text-sm">
@@ -232,6 +249,9 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                       <p className="line-clamp-2 text-sm text-muted-foreground">
                         {course.courseDescription}
                       </p>
+                      {course.ratingCount > 0 && (
+                        <StarDisplay value={course.averageRating} count={course.ratingCount} />
+                      )}
                     </CardHeader>
                     <CardContent className="flex-1">
                       <div className="flex items-center gap-2 text-sm text-green-600">

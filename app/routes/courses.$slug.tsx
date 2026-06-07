@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug";
@@ -42,6 +42,8 @@ import { formatDuration, formatPrice } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
+import { getCourseAverageRating, getUserRatingForCourse } from "~/services/ratingService";
+import { StarDisplay, StarPicker } from "~/components/star-rating";
 
 export function meta({ data: loaderData }: Route.MetaArgs) {
   const title = loaderData?.course?.title ?? "Course";
@@ -102,6 +104,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     : courseWithDetails.price;
   const tierInfo = getCountryTierInfo(country);
 
+  const { average: averageRating, count: ratingCount } = getCourseAverageRating(course.id);
+  const userRating =
+    currentUserId && enrolled
+      ? getUserRatingForCourse(currentUserId, course.id)
+      : null;
+
   return {
     course: courseWithDetails,
     salesCopyHtml,
@@ -113,6 +121,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     currentUserId,
     pppPrice,
     tierInfo,
+    averageRating,
+    ratingCount,
+    userRating,
   };
 }
 
@@ -181,9 +192,50 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     currentUserId,
     pppPrice,
     tierInfo,
+    averageRating,
+    ratingCount,
+    userRating: initialUserRating,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const [searchParams, setSearchParams] = useSearchParams();
+  const [userRating, setUserRating] = useState<number | null>(initialUserRating);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [localAverage, setLocalAverage] = useState(averageRating);
+  const [localCount, setLocalCount] = useState(ratingCount);
+
+  async function handleRating(rating: number) {
+    if (submittingRating) return;
+    setSubmittingRating(true);
+    try {
+      const res = await fetch("/api/course-rating", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courseId: course.id, rating }),
+      });
+      if (res.ok) {
+        const wasRated = userRating !== null;
+        setUserRating(rating);
+        if (!wasRated) {
+          const newCount = localCount + 1;
+          const newAvg = localAverage !== null
+            ? (localAverage * localCount + rating) / newCount
+            : rating;
+          setLocalCount(newCount);
+          setLocalAverage(newAvg);
+        } else {
+          const newAvg = localAverage !== null && localCount > 0
+            ? (localAverage * localCount - (userRating ?? 0) + rating) / localCount
+            : rating;
+          setLocalAverage(newAvg);
+        }
+        toast.success("Avaliação salva!");
+      } else {
+        toast.error("Não foi possível salvar a avaliação.");
+      }
+    } finally {
+      setSubmittingRating(false);
+    }
+  }
 
   useEffect(() => {
     if (searchParams.get("already_enrolled") === "1") {
@@ -301,7 +353,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
         <p className="mb-4 text-lg text-muted-foreground">
           {course.description}
         </p>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <UserAvatar
               name={course.instructorName}
@@ -319,6 +371,9 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               <Clock className="size-4" />
               {formatDuration(totalDuration, true, false, false)} total
             </span>
+          )}
+          {localCount > 0 && (
+            <StarDisplay value={localAverage} count={localCount} size="md" />
           )}
         </div>
       </div>
@@ -442,6 +497,18 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                   </p>
                 )}
               </div>
+              {enrolled && !isInstructor && (
+                <div className="border-t pt-4">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    {userRating ? "Sua avaliação" : "Avalie este curso"}
+                  </p>
+                  <StarPicker
+                    value={userRating}
+                    onChange={handleRating}
+                    disabled={submittingRating}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
