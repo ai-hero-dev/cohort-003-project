@@ -28,6 +28,11 @@ export enum TeamMemberRole {
   Member = "member",
 }
 
+export enum CommentStatus {
+  Visible = "visible",
+  Hidden = "hidden",
+}
+
 // ─── Tables ───
 
 export const users = sqliteTable("users", {
@@ -253,6 +258,45 @@ export const videoWatchEvents = sqliteTable("video_watch_events", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });
+
+export const lessonComments = sqliteTable("lesson_comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  lessonId: integer("lesson_id")
+    .notNull()
+    .references(() => lessons.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  parentId: integer("parent_id").references((): any => lessonComments.id),
+  body: text("body").notNull(),
+  status: text("status")
+    .notNull()
+    .$type<CommentStatus>()
+    .default(CommentStatus.Visible),
+  reportCount: integer("report_count").notNull().default(0),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  editedAt: text("edited_at"),
+  deletedAt: text("deleted_at"),
+});
+
+export const lessonCommentReports = sqliteTable(
+  "lesson_comment_reports",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    commentId: integer("comment_id")
+      .notNull()
+      .references(() => lessonComments.id),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [unique().on(t.commentId, t.userId)]
+);
 
 export const courseRatings = sqliteTable(
   "course_ratings",

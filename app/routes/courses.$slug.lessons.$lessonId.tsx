@@ -10,6 +10,9 @@ import { getLessonById } from "~/services/lessonService";
 import { getModuleById } from "~/services/moduleService";
 import { getCurrentUserId } from "~/lib/session";
 import { isUserEnrolled } from "~/services/enrollmentService";
+import { getUserById } from "~/services/userService";
+import { getCommentsForLesson } from "~/services/commentService";
+import { LessonComments } from "~/components/lesson-comments";
 import {
   getLessonProgress,
   getLessonProgressForCourse,
@@ -26,7 +29,7 @@ import {
   getBestAttempt,
 } from "~/services/quizService";
 import { computeResult } from "~/services/quizScoringService";
-import { LessonProgressStatus } from "~/db/schema";
+import { CommentStatus, LessonProgressStatus, UserRole } from "~/db/schema";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -248,12 +251,32 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     }
   }
 
+  const rawComments = getCommentsForLesson(lessonId);
+  const currentUser = currentUserId ? getUserById(currentUserId) : null;
+  const canPost = enrolled || course.instructorId === currentUserId;
+  const canModerate =
+    !!currentUser &&
+    (currentUser.role === UserRole.Admin ||
+      course.instructorId === currentUserId);
+
+  // Hidden comment bodies never cross the wire to non-moderators.
+  const comments = rawComments.map((c) =>
+    c.status === CommentStatus.Hidden && !canModerate
+      ? { ...c, body: "" }
+      : c
+  );
+
   return {
     course: {
       id: courseWithDetails.id,
       title: courseWithDetails.title,
       slug: courseWithDetails.slug,
     },
+    comments,
+    canPost,
+    canModerate,
+    currentUserName: currentUser?.name ?? null,
+    currentUserAvatarUrl: currentUser?.avatarUrl ?? null,
     curriculum: courseWithDetails.modules.map((m) => ({
       id: m.id,
       title: m.title,
@@ -382,6 +405,11 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments,
+    canPost,
+    canModerate,
+    currentUserName,
+    currentUserAvatarUrl,
   } = loaderData;
   const [autoplay, toggleAutoplay] = useAutoplay();
   const fetcher = useFetcher({ key: `mark-complete-${lesson.id}` });
@@ -591,6 +619,17 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
               )}
             </div>
           )}
+
+          {/* Discussion */}
+          <LessonComments
+            lessonId={lesson.id}
+            comments={comments}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            currentUserAvatarUrl={currentUserAvatarUrl}
+            canPost={canPost}
+            canModerate={canModerate}
+          />
 
           {/* Prev/Next Navigation */}
           <div className="flex items-center justify-between border-t pt-6">

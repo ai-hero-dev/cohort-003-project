@@ -37,6 +37,10 @@ export default [
       "instructor/:courseId/students",
       "routes/instructor.$courseId.students.tsx"
     ),
+    route(
+      "instructor/:courseId/comments",
+      "routes/instructor.$courseId.comments.tsx"
+    ),
     route("admin/users", "routes/admin.users.tsx"),
     route("admin/courses", "routes/admin.courses.tsx"),
     route("admin/categories", "routes/admin.categories.tsx"),
@@ -51,4 +55,5 @@ export default [
   route("api/video-tracking", "routes/api.video-tracking.ts"),
   route("api/set-dev-country", "routes/api.set-dev-country.ts"),
   route("api/rate-course", "routes/api.rate-course.ts"),
+  route("api/lesson-comments", "routes/api.lesson-comments.ts"),
 ] satisfies RouteConfig;

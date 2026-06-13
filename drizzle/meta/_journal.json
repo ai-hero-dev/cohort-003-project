@@ -29,6 +29,13 @@
       "when": 1778768124300,
       "tag": "0003_certain_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1779281801186,
+      "tag": "0004_little_maelstrom",
+      "breakpoints": true
     }
   ]
 }

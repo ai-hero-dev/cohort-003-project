@@ -69,6 +69,7 @@ import {
   Award,
   Globe,
   FileText,
+  MessageSquare,
 } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
@@ -1472,6 +1473,12 @@ export default function InstructorCourseEditor({
                     <Button variant="outline" size="sm">
                       <Eye className="mr-1.5 size-4" />
                       View Public Page
+                    </Button>
+                  </Link>
+                  <Link to={`/instructor/${course.id}/comments`}>
+                    <Button variant="outline" size="sm">
+                      <MessageSquare className="mr-1.5 size-4" />
+                      Moderate Comments
                     </Button>
                   </Link>
                 </div>
