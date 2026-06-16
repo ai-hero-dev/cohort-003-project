@@ -26,7 +26,8 @@ import {
   getBestAttempt,
 } from "~/services/quizService";
 import { computeResult } from "~/services/quizScoringService";
-import { LessonProgressStatus } from "~/db/schema";
+import { getCommentsForLesson } from "~/services/commentService";
+import { LessonProgressStatus, UserRole } from "~/db/schema";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -49,6 +50,7 @@ import {
 import { cn, formatDuration } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
 import { YouTubePlayer } from "~/components/youtube-player";
+import { CommentSection } from "~/components/comment-section";
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
 import { resolveCountry } from "~/lib/country.server";
@@ -133,6 +135,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   }
 
   const currentUserId = await getCurrentUserId(request);
+  let currentUserRole: UserRole | null = null;
   let enrolled = false;
   let lessonStatus: string | null = null;
   let lastWatchPosition = 0;
@@ -140,6 +143,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   let lessonProgressMap: Record<number, string> = {};
 
   if (currentUserId) {
+    const { getUserById } = await import("~/services/userService");
+    const currentUser = getUserById(currentUserId);
+    currentUserRole = currentUser?.role ?? null;
     enrolled = isUserEnrolled(currentUserId, course.id);
 
     if (enrolled) {
@@ -248,6 +254,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     }
   }
 
+  const comments = getCommentsForLesson(lessonId, currentUserId, currentUserRole);
+
   return {
     course: {
       id: courseWithDetails.id,
@@ -281,6 +289,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments,
   };
 }
 
@@ -382,6 +391,7 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
+    comments,
   } = loaderData;
   const [autoplay, toggleAutoplay] = useAutoplay();
   const fetcher = useFetcher({ key: `mark-complete-${lesson.id}` });
@@ -591,6 +601,14 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
               )}
             </div>
           )}
+
+          {/* Comment Section */}
+          <CommentSection
+            comments={comments}
+            currentUserId={currentUserId}
+            isEnrolled={enrolled}
+            lessonId={lesson.id}
+          />
 
           {/* Prev/Next Navigation */}
           <div className="flex items-center justify-between border-t pt-6">

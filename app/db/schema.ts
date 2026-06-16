@@ -256,6 +256,30 @@ export const courseRatings = sqliteTable("course_ratings", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+export enum CommentStatus {
+  Pending = "pending",
+  Approved = "approved",
+  Rejected = "rejected",
+}
+
+export const lessonComments = sqliteTable("lesson_comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  lessonId: integer("lesson_id")
+    .notNull()
+    .references(() => lessons.id),
+  content: text("content").notNull(),
+  status: text("status").notNull().$type<CommentStatus>().default(CommentStatus.Pending),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
 export const videoWatchEvents = sqliteTable("video_watch_events", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id")

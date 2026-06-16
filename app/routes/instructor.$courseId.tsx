@@ -34,6 +34,8 @@ import {
   moveLessonToModule,
 } from "~/services/lessonService";
 import { getEnrollmentCountForCourse, getCourseEnrolledStudents } from "~/services/enrollmentService";
+import { getPendingCommentsForCourse } from "~/services/commentService";
+import { CommentStatus } from "~/db/schema";
 import { calculateProgress } from "~/services/progressService";
 import { getQuizByLessonId, getBestAttempt } from "~/services/quizService";
 import { getCurrentUserId } from "~/lib/session";
@@ -59,6 +61,7 @@ import {
   Eye,
   FileEdit,
   GripVertical,
+  MessageSquare,
   Pencil,
   Plus,
   Save,
@@ -69,6 +72,8 @@ import {
   Award,
   Globe,
   FileText,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
@@ -94,6 +99,7 @@ const courseEditorActionSchema = z.discriminatedUnion("intent", [
   z.object({ intent: z.literal("move-lesson"), lessonId: z.coerce.number().int(), targetModuleId: z.coerce.number().int(), targetPosition: z.coerce.number().int() }),
   z.object({ intent: z.literal("delete-lesson"), lessonId: z.coerce.number().int() }),
   z.object({ intent: z.literal("update-sales-copy"), salesCopy: z.string().optional() }),
+  z.object({ intent: z.literal("moderate-comment"), commentId: z.coerce.number().int(), status: z.nativeEnum(CommentStatus) }),
 ]);
 
 export function meta({ data: loaderData }: Route.MetaArgs) {
@@ -184,8 +190,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   });
 
   const quizCount = lessonQuizzes.length;
+  const pendingComments = getPendingCommentsForCourse(courseId);
 
-  return { course, lessonCount, enrollmentCount, students, quizCount };
+  return { course, lessonCount, enrollmentCount, students, quizCount, pendingComments };
 }
 
 export async function action({ params, request }: Route.ActionArgs) {
@@ -355,6 +362,26 @@ export async function action({ params, request }: Route.ActionArgs) {
   if (intent === "update-sales-copy") {
     updateCourseSalesCopy(courseId, parsed.data.salesCopy || null);
     return { success: true, field: "sales-copy" };
+  }
+
+  if (intent === "moderate-comment") {
+    const { moderateComment, getCommentById } = await import("~/services/commentService");
+    const { getLessonById } = await import("~/services/lessonService");
+    const { getModuleById } = await import("~/services/moduleService");
+
+    const comment = getCommentById(parsed.data.commentId);
+    if (!comment) {
+      throw data("Comment not found.", { status: 404 });
+    }
+
+    const lesson = getLessonById(comment.lessonId);
+    const mod = lesson ? getModuleById(lesson.moduleId) : null;
+    if (!mod || mod.courseId !== courseId) {
+      throw data("Comment does not belong to this course.", { status: 403 });
+    }
+
+    moderateComment(parsed.data.commentId, parsed.data.status);
+    return { success: true, field: "comment" };
   }
 
   throw data("Invalid action.", { status: 400 });
@@ -984,7 +1011,7 @@ function statusBadgeColor(status: string) {
 export default function InstructorCourseEditor({
   loaderData,
 }: Route.ComponentProps) {
-  const { course, lessonCount, enrollmentCount, students, quizCount } = loaderData;
+  const { course, lessonCount, enrollmentCount, students, quizCount, pendingComments } = loaderData;
   const statusFetcher = useFetcher();
   const reorderFetcher = useFetcher();
   const lessonReorderFetcher = useFetcher();
@@ -1192,6 +1219,15 @@ export default function InstructorCourseEditor({
           <TabsTrigger value="students">
             <Users className="size-4" />
             Students
+          </TabsTrigger>
+          <TabsTrigger value="comments">
+            <MessageSquare className="size-4" />
+            Comments
+            {pendingComments.length > 0 && (
+              <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-xs font-medium text-white">
+                {pendingComments.length}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -1652,7 +1688,112 @@ export default function InstructorCourseEditor({
             </Card>
           )}
         </TabsContent>
+
+        {/* Comments Tab */}
+        <TabsContent value="comments" className="mt-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <MessageSquare className="size-5 text-primary" />
+                <h2 className="text-lg font-semibold">Pending Comments</h2>
+                <span className="text-sm text-muted-foreground">
+                  — {pendingComments.length} awaiting review
+                </span>
+              </div>
+
+              {pendingComments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No comments pending review. All caught up!
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {pendingComments.map((comment) => (
+                    <PendingCommentRow key={comment.id} comment={comment} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function PendingCommentRow({
+  comment,
+}: {
+  comment: {
+    id: number;
+    userId: number;
+    content: string;
+    status: string;
+    createdAt: string;
+    lessonId: number;
+    lessonTitle: string;
+    authorName: string;
+    authorAvatarUrl: string | null;
+  };
+}) {
+  const fetcher = useFetcher({ key: `moderate-${comment.id}` });
+  const isPending = fetcher.state !== "idle";
+  const optimisticStatus = isPending
+    ? (fetcher.formData?.get("status") as string)
+    : null;
+
+  if (optimisticStatus) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <div className="mb-1 flex items-center gap-2 text-sm">
+            <span className="font-medium">{comment.authorName}</span>
+            <span className="text-muted-foreground">on</span>
+            <span className="font-medium">{comment.lessonTitle}</span>
+            <span className="text-xs text-muted-foreground">
+              {new Date(comment.createdAt).toLocaleDateString()}
+            </span>
+          </div>
+          <p className="text-sm text-foreground/90 whitespace-pre-wrap">
+            {comment.content}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <fetcher.Form method="post">
+            <input type="hidden" name="intent" value="moderate-comment" />
+            <input type="hidden" name="commentId" value={comment.id} />
+            <input type="hidden" name="status" value={CommentStatus.Approved} />
+            <Button
+              type="submit"
+              size="sm"
+              variant="outline"
+              disabled={isPending}
+              className="text-green-600 hover:text-green-700 hover:border-green-300"
+            >
+              <CheckCircle2 className="mr-1.5 size-4" />
+              Approve
+            </Button>
+          </fetcher.Form>
+          <fetcher.Form method="post">
+            <input type="hidden" name="intent" value="moderate-comment" />
+            <input type="hidden" name="commentId" value={comment.id} />
+            <input type="hidden" name="status" value={CommentStatus.Rejected} />
+            <Button
+              type="submit"
+              size="sm"
+              variant="outline"
+              disabled={isPending}
+              className="text-red-600 hover:text-red-700 hover:border-red-300"
+            >
+              <XCircle className="mr-1.5 size-4" />
+              Reject
+            </Button>
+          </fetcher.Form>
+        </div>
+      </div>
     </div>
   );
 }
