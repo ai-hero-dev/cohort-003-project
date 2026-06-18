@@ -45,6 +45,7 @@ async function seed() {
 
   // Drop and recreate tables for a clean seed
   sqlite.exec(`
+    DROP TABLE IF EXISTS course_ratings;
     DROP TABLE IF EXISTS video_watch_events;
     DROP TABLE IF EXISTS quiz_answers;
     DROP TABLE IF EXISTS quiz_attempts;

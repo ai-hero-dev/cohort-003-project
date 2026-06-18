@@ -13,8 +13,10 @@ import { getCurrentUserId } from "~/lib/session";
 import { formatPrice } from "~/lib/utils";
 import { getUserEnrolledCourses } from "~/services/enrollmentService";
 import { calculateProgress, getCompletedLessonCount } from "~/services/progressService";
+import { getCourseRatingStatsForCourses } from "~/services/ratingService";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice } from "~/lib/ppp";
+import { StarRating } from "~/components/star-rating";
 
 export function meta() {
   return [
@@ -55,17 +57,27 @@ export async function loader({ request }: Route.LoaderArgs) {
     }
   }
 
+  const ratingStatsMap = getCourseRatingStatsForCourses(
+    courses.map((c) => c.id)
+  );
+
   const coursesWithLessonCount = courses.map((course) => {
     const userProgress = progressMap.get(course.id);
     const pppPrice = course.pppEnabled
       ? calculatePppPrice(course.price, country)
       : course.price;
+    const ratingStats = ratingStatsMap.get(course.id) ?? {
+      average: null,
+      count: 0,
+    };
     return {
       ...course,
       lessonCount: getLessonCountForCourse(course.id),
       progress: userProgress?.progress ?? null,
       completedLessons: userProgress?.completedLessons ?? null,
       pppPrice,
+      ratingAverage: ratingStats.average,
+      ratingCount: ratingStats.count,
     };
   });
 
@@ -226,27 +238,34 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
                     </div>
                   </CardContent>
                 )}
-                <CardFooter className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <UserAvatar
-                      name={course.instructorName}
-                      avatarUrl={course.instructorAvatarUrl}
-                      className="size-5"
-                    />
-                    {course.instructorName}
-                  </span>
-                  <span className="font-semibold text-foreground">
-                    {course.pppPrice < course.price ? (
-                      <span className="flex items-center gap-1.5">
-                        <span className="text-xs line-through text-muted-foreground font-normal">
-                          {formatPrice(course.price)}
+                <CardFooter className="flex flex-col items-stretch gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <UserAvatar
+                        name={course.instructorName}
+                        avatarUrl={course.instructorAvatarUrl}
+                        className="size-5"
+                      />
+                      {course.instructorName}
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {course.pppPrice < course.price ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-xs line-through text-muted-foreground font-normal">
+                            {formatPrice(course.price)}
+                          </span>
+                          {formatPrice(course.pppPrice)}
                         </span>
-                        {formatPrice(course.pppPrice)}
-                      </span>
-                    ) : (
-                      formatPrice(course.price)
-                    )}
-                  </span>
+                      ) : (
+                        formatPrice(course.price)
+                      )}
+                    </span>
+                  </div>
+                  <StarRating
+                    mode="display"
+                    average={course.ratingAverage}
+                    count={course.ratingCount}
+                  />
                 </CardFooter>
               </Card>
             </Link>

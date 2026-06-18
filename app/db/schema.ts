@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, unique } from "drizzle-orm/sqlite-core";
 
 export enum UserRole {
   Student = "student",
@@ -26,6 +26,11 @@ export enum QuestionType {
 export enum TeamMemberRole {
   Admin = "admin",
   Member = "member",
+}
+
+export enum CommentStatus {
+  Visible = "visible",
+  Hidden = "hidden",
 }
 
 // ─── Tables ───
@@ -253,3 +258,60 @@ export const videoWatchEvents = sqliteTable("video_watch_events", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });
+
+export const lessonComments = sqliteTable("lesson_comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  lessonId: integer("lesson_id")
+    .notNull()
+    .references(() => lessons.id),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  parentId: integer("parent_id").references((): any => lessonComments.id),
+  body: text("body").notNull(),
+  status: text("status")
+    .notNull()
+    .$type<CommentStatus>()
+    .default(CommentStatus.Visible),
+  reportCount: integer("report_count").notNull().default(0),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  editedAt: text("edited_at"),
+  deletedAt: text("deleted_at"),
+});
+
+export const lessonCommentReports = sqliteTable(
+  "lesson_comment_reports",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    commentId: integer("comment_id")
+      .notNull()
+      .references(() => lessonComments.id),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [unique().on(t.commentId, t.userId)]
+);
+
+export const courseRatings = sqliteTable(
+  "course_ratings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    courseId: integer("course_id")
+      .notNull()
+      .references(() => courses.id),
+    rating: integer("rating").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [unique().on(t.userId, t.courseId)]
+);

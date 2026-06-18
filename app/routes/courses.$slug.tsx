@@ -9,10 +9,15 @@ import {
 } from "~/services/courseService";
 import { isUserEnrolled } from "~/services/enrollmentService";
 import {
+  getCourseRatingStats,
+  getRatingForUser,
+} from "~/services/ratingService";
+import {
   calculateProgress,
   getLessonProgressForCourse,
   getNextIncompleteLesson,
 } from "~/services/progressService";
+import { StarRating } from "~/components/star-rating";
 import { getCurrentUserId } from "~/lib/session";
 import { LessonProgressStatus } from "~/db/schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -91,6 +96,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     }
   }
 
+  const ratingStats = getCourseRatingStats(course.id);
+  const userRating =
+    currentUserId && enrolled
+      ? (getRatingForUser(currentUserId, course.id) ?? null)
+      : null;
+
   // Render sales copy from Markdown to HTML server-side
   const salesCopyHtml = courseWithDetails.salesCopy
     ? await renderMarkdown(courseWithDetails.salesCopy)
@@ -113,6 +124,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     currentUserId,
     pppPrice,
     tierInfo,
+    ratingStats,
+    userRating,
   };
 }
 
@@ -181,6 +194,8 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     currentUserId,
     pppPrice,
     tierInfo,
+    ratingStats,
+    userRating,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -320,6 +335,12 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               {formatDuration(totalDuration, true, false, false)} total
             </span>
           )}
+          <StarRating
+            mode="display"
+            average={ratingStats.average}
+            count={ratingStats.count}
+            size="md"
+          />
         </div>
       </div>
 
@@ -413,6 +434,16 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                       Buy More Seats
                     </Button>
                   </Link>
+                  <div className="border-t pt-4">
+                    <p className="mb-2 text-sm font-medium">
+                      {userRating ? "Your rating" : "Rate this course"}
+                    </p>
+                    <StarRating
+                      mode="input"
+                      courseId={course.id}
+                      currentRating={userRating?.rating ?? null}
+                    />
+                  </div>
                 </>
               ) : (
                 enrollButton
