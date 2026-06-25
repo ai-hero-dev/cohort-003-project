@@ -27,11 +27,17 @@ import {
 } from "~/services/quizService";
 import { computeResult } from "~/services/quizScoringService";
 import { getCommentsForLesson } from "~/services/commentService";
+import {
+  getBookmarkedLessonIds,
+  isLessonBookmarked,
+  toggleBookmark,
+} from "~/services/bookmarkService";
 import { LessonProgressStatus, UserRole } from "~/db/schema";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
   AlertTriangle,
+  Bookmark,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -141,12 +147,20 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   let lastWatchPosition = 0;
   let watchProgress = 0;
   let lessonProgressMap: Record<number, string> = {};
+  let bookmarkedLessonIds: number[] = [];
+  let isBookmarked = false;
 
   if (currentUserId) {
     const { getUserById } = await import("~/services/userService");
     const currentUser = getUserById(currentUserId);
     currentUserRole = currentUser?.role ?? null;
     enrolled = isUserEnrolled(currentUserId, course.id);
+
+    if (!enrolled && currentUserRole === UserRole.Student) {
+      throw data("You must be enrolled in this course to view its lessons", {
+        status: 403,
+      });
+    }
 
     if (enrolled) {
       // Mark lesson as in-progress when viewed
@@ -175,6 +189,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
           );
         }
       }
+
+      bookmarkedLessonIds = getBookmarkedLessonIds({
+        userId: currentUserId,
+        courseId: course.id,
+      });
+      isBookmarked = isLessonBookmarked({ userId: currentUserId, lessonId });
     }
   }
 
@@ -290,6 +310,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppBlockedCountry,
     pppPurchaseCountry,
     comments,
+    currentUserRole,
+    bookmarkedLessonIds,
+    isBookmarked,
   };
 }
 
@@ -312,6 +335,15 @@ export async function action({ params, request }: Route.ActionArgs) {
   if (intent === "mark-complete") {
     markLessonComplete(currentUserId, lessonId);
     return { success: true };
+  }
+
+  if (intent === "toggle-bookmark") {
+    const enrolled = isUserEnrolled(currentUserId, course.id);
+    if (!enrolled) {
+      throw data("You must be enrolled to bookmark lessons", { status: 403 });
+    }
+    const result = toggleBookmark({ userId: currentUserId, lessonId });
+    return { success: true, bookmarked: result.bookmarked };
   }
 
   if (intent === "submit-quiz") {
@@ -392,11 +424,20 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     pppBlockedCountry,
     pppPurchaseCountry,
     comments,
+    currentUserRole,
+    bookmarkedLessonIds,
+    isBookmarked,
   } = loaderData;
   const [autoplay, toggleAutoplay] = useAutoplay();
   const fetcher = useFetcher({ key: `mark-complete-${lesson.id}` });
   const quizFetcher = useFetcher({ key: `quiz-${lesson.id}` });
+  const bookmarkFetcher = useFetcher({ key: `bookmark-${lesson.id}` });
   const navigate = useNavigate();
+
+  const isPendingBookmark = bookmarkFetcher.state !== "idle";
+  const optimisticBookmarked = isPendingBookmark
+    ? !isBookmarked
+    : (bookmarkFetcher.data?.bookmarked ?? isBookmarked);
 
   const isMarking =
     fetcher.state !== "idle" &&
@@ -464,6 +505,7 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
         currentLessonId={lesson.id}
         lessonProgressMap={lessonProgressMap}
         enrolled={enrolled}
+        bookmarkedLessonIds={bookmarkedLessonIds}
       />
 
       <div className="flex-1 p-6 lg:p-8">
@@ -511,6 +553,26 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
                   Open Code
                 </Button>
               </a>
+            )}
+            {enrolled && currentUserId && (
+              <bookmarkFetcher.Form method="post">
+                <input type="hidden" name="intent" value="toggle-bookmark" />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  disabled={isPendingBookmark}
+                >
+                  <Bookmark
+                    className={cn(
+                      "size-4",
+                      optimisticBookmarked
+                        ? "fill-amber-500 text-amber-500"
+                        : "fill-none text-muted-foreground"
+                    )}
+                  />
+                </Button>
+              </bookmarkFetcher.Form>
             )}
           </div>
 
@@ -606,6 +668,7 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
           <CommentSection
             comments={comments}
             currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
             isEnrolled={enrolled}
             lessonId={lesson.id}
           />
@@ -669,6 +732,7 @@ function CurriculumSidebar({
   currentLessonId,
   lessonProgressMap,
   enrolled,
+  bookmarkedLessonIds,
 }: {
   course: { id: number; title: string; slug: string };
   curriculum: Array<{
@@ -679,7 +743,9 @@ function CurriculumSidebar({
   currentLessonId: number;
   lessonProgressMap: Record<number, string>;
   enrolled: boolean;
+  bookmarkedLessonIds: number[];
 }) {
+  const bookmarkedSet = new Set(bookmarkedLessonIds);
   // Find which module the current lesson belongs to
   const currentModuleId = curriculum.find((m) =>
     m.lessons.some((l) => l.id === currentLessonId)
@@ -719,6 +785,9 @@ function CurriculumSidebar({
         <nav className="flex-1 p-2">
           {curriculum.map((mod) => {
             const isExpanded = expandedModules.has(mod.id);
+            const hasBookmarkedLesson = mod.lessons.some((l) =>
+              bookmarkedSet.has(l.id)
+            );
 
             return (
               <div key={mod.id} className="mb-1">
@@ -733,6 +802,9 @@ function CurriculumSidebar({
                     )}
                   />
                   <span className="flex-1 text-left">{mod.title}</span>
+                  {hasBookmarkedLesson && (
+                    <Bookmark className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
+                  )}
                 </button>
 
                 {isExpanded && (
@@ -744,6 +816,7 @@ function CurriculumSidebar({
                         status === LessonProgressStatus.Completed;
                       const isInProgress =
                         status === LessonProgressStatus.InProgress;
+                      const isLessonBookmarked = bookmarkedSet.has(l.id);
 
                       return (
                         <li key={l.id}>
@@ -767,7 +840,10 @@ function CurriculumSidebar({
                             ) : (
                               <Circle className="size-3.5 shrink-0" />
                             )}
-                            <span className="truncate">{l.title}</span>
+                            <span className="truncate flex-1">{l.title}</span>
+                            {isLessonBookmarked && (
+                              <Bookmark className="size-3.5 shrink-0 fill-amber-500 text-amber-500" />
+                            )}
                           </Link>
                         </li>
                       );
@@ -1041,6 +1117,12 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       title = "Lesson not found";
       message =
         "The lesson you're looking for doesn't exist or may have been removed.";
+    } else if (error.status === 403) {
+      title = "Access denied";
+      message =
+        typeof error.data === "string"
+          ? error.data
+          : "You must be enrolled in this course to view its lessons.";
     } else if (error.status === 401) {
       title = "Sign in required";
       message =

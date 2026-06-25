@@ -272,10 +272,27 @@ export const lessonComments = sqliteTable("lesson_comments", {
     .references(() => lessons.id),
   content: text("content").notNull(),
   status: text("status").notNull().$type<CommentStatus>().default(CommentStatus.Pending),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  parentCommentId: integer("parent_comment_id").references((): any => lessonComments.id),
+  deletedAt: text("deleted_at"),
+  editedAt: text("edited_at"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
+export const lessonBookmarks = sqliteTable("lesson_bookmarks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  lessonId: integer("lesson_id")
+    .notNull()
+    .references(() => lessons.id),
+  createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });

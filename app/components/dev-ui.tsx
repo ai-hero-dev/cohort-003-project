@@ -112,6 +112,7 @@ export function DevUI({ users, currentUser, devCountry, countryTierInfo, countri
                 <Form
                   key={user.id}
                   method="post"
+                  reloadDocument
                   action={`/api/switch-user?redirectTo=${encodeURIComponent(location.pathname + location.search)}`}
                 >
                   <input type="hidden" name="userId" value={user.id} />
@@ -139,6 +140,7 @@ export function DevUI({ users, currentUser, devCountry, countryTierInfo, countri
           </div>
           <Form
             method="post"
+            reloadDocument
             action={`/api/set-dev-country?redirectTo=${encodeURIComponent(location.pathname + location.search)}`}
           >
             <select

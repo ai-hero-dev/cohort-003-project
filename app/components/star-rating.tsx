@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Star } from "lucide-react";
 import { cn } from "~/lib/utils";
 
@@ -76,29 +77,34 @@ export function StarPicker({
   disabled?: boolean;
   className?: string;
 }) {
+  const [hoverValue, setHoverValue] = useState<number | null>(null);
+
   return (
     <span className={cn("flex items-center gap-0.5", className)}>
       {Array.from({ length: 5 }).map((_, i) => {
         const star = i + 1;
-        const filled = value !== null && star <= value;
+        const active = hoverValue ?? value;
+        const filled = active !== null && star <= active;
         return (
           <button
             key={star}
             type="button"
             disabled={disabled}
             onClick={() => onChange(star)}
+            onMouseEnter={() => !disabled && setHoverValue(star)}
+            onMouseLeave={() => setHoverValue(null)}
             className={cn(
               "rounded transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               disabled && "cursor-default opacity-60"
             )}
-            aria-label={`Avaliar ${star} de 5 estrelas`}
+            aria-label={`Rate ${star} out of 5 stars`}
           >
             <Star
               className={cn(
                 "size-6 transition-colors",
                 filled
                   ? "fill-yellow-400 text-yellow-400"
-                  : "fill-muted-foreground/20 text-muted-foreground/20 hover:fill-yellow-300 hover:text-yellow-300"
+                  : "fill-muted-foreground/20 text-muted-foreground/20"
               )}
             />
           </button>

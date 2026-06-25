@@ -29,6 +29,20 @@
       "when": 1781568163968,
       "tag": "0003_majestic_blink",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781568164000,
+      "tag": "0004_comment_threads",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1781568165000,
+      "tag": "0005_lesson_bookmarks",
+      "breakpoints": true
     }
   ]
 }
