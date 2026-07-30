@@ -45,6 +45,7 @@ async function seed() {
 
   // Drop and recreate tables for a clean seed
   sqlite.exec(`
+    DROP TABLE IF EXISTS course_ratings;
     DROP TABLE IF EXISTS video_watch_events;
     DROP TABLE IF EXISTS quiz_answers;
     DROP TABLE IF EXISTS quiz_attempts;
@@ -1727,6 +1728,25 @@ You've completed the Building REST APIs course. You now have the skills to build
     `Created 1 team with Bossy McBossface as admin, 1 team purchase, and ${seededCoupons.length} coupons (2 redeemed, 3 available).`
   );
 
+  // ─── Course Ratings ───
+  // Star-only ratings from enrolled students. Course 1 averages 4.5 across
+  // 4 raters; course 2 averages 4.0 across 3, so the two courses render
+  // differently in the catalog.
+
+  db.insert(schema.courseRatings)
+    .values([
+      { userId: students[0].id, courseId: course1.id, rating: 5, createdAt: daysAgo(20), updatedAt: daysAgo(20) },
+      { userId: students[1].id, courseId: course1.id, rating: 5, createdAt: daysAgo(9), updatedAt: daysAgo(9) },
+      { userId: students[2].id, courseId: course1.id, rating: 4, createdAt: daysAgo(18), updatedAt: daysAgo(18) },
+      { userId: students[4].id, courseId: course1.id, rating: 4, createdAt: daysAgo(5), updatedAt: daysAgo(5) },
+      { userId: students[0].id, courseId: course2.id, rating: 4, createdAt: daysAgo(15), updatedAt: daysAgo(15) },
+      { userId: students[2].id, courseId: course2.id, rating: 5, createdAt: daysAgo(12), updatedAt: daysAgo(12) },
+      { userId: students[3].id, courseId: course2.id, rating: 3, createdAt: daysAgo(8), updatedAt: daysAgo(8) },
+    ])
+    .run();
+
+  console.log("Created 7 course ratings.");
+
   console.log("\n✓ Seed complete!");
   console.log("  Users: 9 (1 admin, 2 instructors, 6 students)");
   console.log("  Categories: 5");
@@ -1735,6 +1755,7 @@ You've completed the Building REST APIs course. You now have the skills to build
   );
   console.log("  Quizzes: 3");
   console.log("  Enrollments: 7");
+  console.log("  Course ratings: 7");
   console.log("  Purchases: 6 (5 individual + 1 team)");
   console.log("  Teams: 1 (with 5 coupons)");
 }

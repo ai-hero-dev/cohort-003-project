@@ -8,6 +8,11 @@ import { getAllCategories } from "~/services/categoryService";
 import { CourseStatus } from "~/db/schema";
 import { BookOpen, GraduationCap, Users, ArrowRight, User, Moon, Sun } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
+import { StarRating } from "~/components/star-rating";
+import {
+  emptyRatingSummary,
+  getRatingSummariesForCourses,
+} from "~/services/ratingService";
 import { DevUI } from "~/components/dev-ui";
 import { getAllUsers, getUserById } from "~/services/userService";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
@@ -22,9 +27,14 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const courses = buildCourseQuery(null, null, CourseStatus.Published, "newest", 50, 0);
-  const featured = courses.slice(0, 3).map((course) => ({
+  const featuredCourses = courses.slice(0, 3);
+  const ratingSummaries = getRatingSummariesForCourses(
+    featuredCourses.map((course) => course.id)
+  );
+  const featured = featuredCourses.map((course) => ({
     ...course,
     lessonCount: getLessonCountForCourse(course.id),
+    rating: ratingSummaries.get(course.id) ?? emptyRatingSummary(),
   }));
   const categories = getAllCategories();
   const users = getAllUsers();
@@ -181,6 +191,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                     <h3 className="font-semibold leading-snug group-hover:text-primary">
                       {course.title}
                     </h3>
+                    {course.rating.count > 0 && (
+                      <StarRating
+                        average={course.rating.average}
+                        count={course.rating.count}
+                        className="mt-1"
+                      />
+                    )}
                   </CardHeader>
                   <CardContent>
                     <p className="line-clamp-2 text-sm text-muted-foreground">

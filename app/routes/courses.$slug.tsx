@@ -1,12 +1,19 @@
 import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { z } from "zod";
 import type { Route } from "./+types/courses.$slug";
 import {
   getCourseBySlug,
   getCourseWithDetails,
   getLessonCountForCourse,
 } from "~/services/courseService";
+import {
+  canUserRateCourse,
+  getCourseRatingSummary,
+  getUserRating,
+  rateCourse,
+} from "~/services/ratingService";
 import { isUserEnrolled } from "~/services/enrollmentService";
 import {
   calculateProgress,
@@ -14,7 +21,8 @@ import {
   getNextIncompleteLesson,
 } from "~/services/progressService";
 import { getCurrentUserId } from "~/lib/session";
-import { LessonProgressStatus } from "~/db/schema";
+import { parseFormData } from "~/lib/validation";
+import { LessonProgressStatus, MAX_RATING, MIN_RATING } from "~/db/schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -37,6 +45,7 @@ import {
 } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
 import { UserAvatar } from "~/components/user-avatar";
+import { RateCourseForm, StarRating } from "~/components/star-rating";
 import { data, isRouteErrorResponse } from "react-router";
 import { formatDuration, formatPrice } from "~/lib/utils";
 import { renderMarkdown } from "~/lib/markdown.server";
@@ -102,6 +111,14 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     : courseWithDetails.price;
   const tierInfo = getCountryTierInfo(country);
 
+  const ratingSummary = getCourseRatingSummary(course.id);
+  const canRate = currentUserId
+    ? canUserRateCourse(currentUserId, course.id)
+    : false;
+  const userRating = currentUserId
+    ? (getUserRating(currentUserId, course.id)?.rating ?? null)
+    : null;
+
   return {
     course: courseWithDetails,
     salesCopyHtml,
@@ -113,10 +130,47 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     currentUserId,
     pppPrice,
     tierInfo,
+    ratingSummary,
+    canRate,
+    userRating,
   };
 }
 
-// No action — enrollment is handled via the purchase confirmation page
+// Enrollment is handled via the purchase confirmation page; the only action
+// here is leaving a star rating.
+const rateSchema = z.object({
+  intent: z.literal("rate"),
+  rating: z.coerce.number().int().min(MIN_RATING).max(MAX_RATING),
+});
+
+export async function action({ params, request }: Route.ActionArgs) {
+  const currentUserId = await getCurrentUserId(request);
+  if (!currentUserId) {
+    throw data("Sign in to rate this course", { status: 401 });
+  }
+
+  const course = getCourseBySlug(params.slug);
+  if (!course) {
+    throw data("Course not found", { status: 404 });
+  }
+
+  const formData = await request.formData();
+  const parsed = parseFormData(formData, rateSchema);
+
+  if (!parsed.success) {
+    return {
+      error: `Please choose a rating between ${MIN_RATING} and ${MAX_RATING} stars.`,
+    };
+  }
+
+  if (!canUserRateCourse(currentUserId, course.id)) {
+    throw data("Only enrolled students can rate this course", { status: 403 });
+  }
+
+  rateCourse(currentUserId, course.id, parsed.data.rating);
+
+  return { error: null };
+}
 
 export function HydrateFallback() {
   return (
@@ -169,7 +223,10 @@ export function HydrateFallback() {
   );
 }
 
-export default function CourseDetail({ loaderData }: Route.ComponentProps) {
+export default function CourseDetail({
+  loaderData,
+  actionData,
+}: Route.ComponentProps) {
   const {
     course,
     salesCopyHtml,
@@ -181,6 +238,9 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     currentUserId,
     pppPrice,
     tierInfo,
+    ratingSummary,
+    canRate,
+    userRating,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -320,6 +380,10 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               {formatDuration(totalDuration, true, false, false)} total
             </span>
           )}
+          <StarRating
+            average={ratingSummary.average}
+            count={ratingSummary.count}
+          />
         </div>
       </div>
 
@@ -442,6 +506,18 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                   </p>
                 )}
               </div>
+
+              {canRate && (
+                <div className="border-t pt-4">
+                  <h3 className="mb-2 text-sm font-medium">Rate this course</h3>
+                  <RateCourseForm currentRating={userRating} />
+                  {actionData?.error && (
+                    <p className="mt-2 text-xs text-destructive">
+                      {actionData.error}
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
